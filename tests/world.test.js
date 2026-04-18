@@ -11,6 +11,7 @@ import {
   nextPosition,
   normalizeBoardSize,
   renderAsciiCanvas,
+  sanitizeChatMessage,
   sanitizeName
 } from '../src/world.js';
 import { initWorld } from '../src/world-client.js';
@@ -26,6 +27,13 @@ function mountWorldDom(bootstrap) {
       <button data-world-move="down">down</button>
       <button data-world-move="right">right</button>
       <pre data-world-canvas></pre>
+      <section><ul data-world-users></ul></section>
+      <section>
+        <form data-world-chat-form>
+          <input data-world-chat-input />
+        </form>
+        <ul data-world-chat></ul>
+      </section>
       <script type="application/json" data-world-bootstrap>${JSON.stringify(bootstrap)}</script>
     </main>
   `;
@@ -54,6 +62,12 @@ describe('world primitives', () => {
     expect(sanitizeName('x'.repeat(40)).length).toBe(24);
   });
 
+  it('sanitizes chat messages including empty values and max length', () => {
+    expect(sanitizeChatMessage('  hello there  ')).toBe('hello there');
+    expect(sanitizeChatMessage(undefined)).toBe('');
+    expect(sanitizeChatMessage('x'.repeat(500)).length).toBe(240);
+  });
+
   it('assigns viewer characters deterministically with rng and safe fallback', () => {
     expect(assignViewerCharacter(() => 0)).toBe('!');
     expect(assignViewerCharacter(() => 1)).toBe('@');
@@ -78,7 +92,6 @@ describe('world primitives', () => {
     expect(viewer.y).toBe(119);
     expect(viewer.id.startsWith('viewer-')).toBe(true);
   });
-
 
   it('handles non-string names and non-finite coordinates defensively', () => {
     expect(sanitizeName(undefined, 'Fallback')).toBe('Fallback');
@@ -127,24 +140,47 @@ describe('createWorldController and initWorld', () => {
     ).toThrow('World UI is missing required elements.');
   });
 
-  it('initializes through world-client and supports click and keyboard movement + rename + sync', async () => {
+  it('initializes through world-client and supports movement, rename, users panel, and chat', async () => {
     mountWorldDom({
       world: { width: 5, height: 5 },
       viewer: { id: '1', character: '&', name: 'Comet', x: 1, y: 1 }
     });
 
-    global.fetch = async () => ({
-      ok: true,
-      async json() {
-        return { percentage: 100, contents: 'synced-map' };
+    const serverMessages = [];
+    const fetchMock = vi.fn(async (_url, options) => {
+      const payload = JSON.parse(options.body);
+
+      if (payload.chatMessage) {
+        serverMessages.push({ id: `m-${serverMessages.length + 1}`, name: payload.viewer.name, text: payload.chatMessage });
       }
+
+      return {
+        ok: true,
+        async json() {
+          return {
+            percentage: 100,
+            contents: 'synced-map',
+            users: [
+              { id: payload.viewer.id, name: payload.viewer.name, character: payload.viewer.character, x: payload.viewer.x, y: payload.viewer.y },
+              { id: '2', name: 'Nebula', character: 'N', x: 3, y: 4 }
+            ],
+            messages: [...serverMessages]
+          };
+        }
+      };
     });
+
+    vi.stubGlobal('fetch', fetchMock);
 
     const controller = initWorld(document);
     const status = document.querySelector('[data-world-status]');
     const canvas = document.querySelector('[data-world-canvas]');
     const nameInput = document.querySelector('[data-world-name]');
     const signals = document.querySelector('[data-world-signals]');
+    const usersList = document.querySelector('[data-world-users]');
+    const chatForm = document.querySelector('[data-world-chat-form]');
+    const chatInput = document.querySelector('[data-world-chat-input]');
+    const chatList = document.querySelector('[data-world-chat]');
 
     expect(status.textContent).toContain('Comet (&) at [1, 1]');
     expect(canvas.textContent.split('\n').length).toBe(5);
@@ -164,15 +200,29 @@ describe('createWorldController and initWorld', () => {
     fireEvent.input(nameInput, { target: { value: '  Aurora  ' } });
     expect(status.textContent).toContain('Aurora (&)');
 
+    fireEvent.submit(chatForm);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(chatList.children.length).toBe(0);
+
+    fireEvent.input(chatInput, { target: { value: ' Hello everyone! ' } });
+    fireEvent.submit(chatForm);
+
     controller.rename('');
     expect(status.textContent).toContain('Starling (&)');
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(JSON.parse(signals.dataset.signals)._contents).toBe('synced-map');
-    expect(JSON.parse(signals.dataset.signals)._percentage).toBe(100);
+
+    const signalPayload = JSON.parse(signals.dataset.signals);
+    expect(signalPayload._contents).toBe('synced-map');
+    expect(signalPayload._percentage).toBe(100);
+    expect(signalPayload._users.length).toBe(2);
+    expect(signalPayload._messages.length).toBe(1);
+    expect(usersList.textContent).toContain('Nebula (N)');
+    expect(chatList.textContent).toContain('Aurora: Hello everyone!');
 
     controller.move('right');
     expect(controller.getState().viewer.x).toBe(1);
     expect(controller.getState().world.width).toBe(5);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it('throws when bootstrap payload is missing', () => {
@@ -209,24 +259,33 @@ describe('createWorldSync', () => {
 
     await expect(sync({ contents: '..' })).resolves.toEqual({
       percentage: 100,
-      contents: '..'
+      contents: '..',
+      users: [],
+      messages: []
     });
   });
 
-  it('falls back to zero percentage when payload is not numeric', async () => {
+  it('parses users and chat messages arrays and handles non-numeric percentage', async () => {
     const sync = createWorldSync({
       url: '/world/updates',
       fetchFn: async () => ({
         ok: true,
         async json() {
-          return { percentage: 'not-a-number', contents: 'map' };
+          return {
+            percentage: 'not-a-number',
+            contents: 'map',
+            users: [{ id: 'v1' }],
+            messages: [{ id: 'm1' }]
+          };
         }
       })
     });
 
     await expect(sync({ contents: '..' })).resolves.toEqual({
       percentage: 0,
-      contents: 'map'
+      contents: 'map',
+      users: [{ id: 'v1' }],
+      messages: [{ id: 'm1' }]
     });
   });
 

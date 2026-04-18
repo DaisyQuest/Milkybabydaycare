@@ -1,7 +1,12 @@
 {
   "navigationFallback": {
-    "rewrite": "/milkybabydaycare.html",
-    "exclude": ["/assets/*", "/*.css", "/*.js", "/src/*"]
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*",
+      "/*.css",
+      "/*.js",
+      "/src/*"
+    ]
   },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",

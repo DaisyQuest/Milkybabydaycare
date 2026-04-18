@@ -1,15 +1,19 @@
 import express from 'express';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   assignViewerCharacter,
   clamp,
   createWorldConfig,
+  sanitizeAvatar,
   sanitizeChatMessage,
   sanitizeName
 } from './world.js';
 
 const STALE_VIEWER_MS = 120_000;
 const MAX_CHAT_MESSAGES = 30;
+const MAX_ADMIN_ATTEMPTS = 5;
+const ADMIN_BLOCK_MS = 60_000;
+const DEFAULT_ADMIN_PASSWORD = 'bicassdooandyou';
 
 function worldPageTemplate({ viewer, world }) {
   return `<!doctype html>
@@ -28,7 +32,8 @@ function worldPageTemplate({ viewer, world }) {
       <label
         data-world-signals
         data-world-updates-url="/world/updates"
-        data-signals='{"_percentage":100,"_contents":"loading...","_name":"${viewer.name}","_character":"${viewer.character}","_users":[],"_messages":[]}'
+        data-world-admin-auth-url="/world/admin-auth"
+        data-signals='{"_percentage":100,"_contents":"loading...","_name":"${viewer.name}","_character":"${viewer.character}","_users":[],"_messages":[],"_admin":false}'
         data-init="@get('/world/updates')"
       >
         <span data-text="\`Synced: \${$_percentage.toFixed(2)}%\`">Synced: 100.00%</span>
@@ -38,6 +43,77 @@ function worldPageTemplate({ viewer, world }) {
         Your name
         <input type="text" maxlength="24" data-world-name value="${viewer.name}" />
       </label>
+
+      <section class="admin-auth" aria-label="Admin authentication">
+        <h2>Admin Auth</h2>
+        <form data-world-admin-form>
+          <label>
+            Admin password
+            <input type="password" autocomplete="off" data-world-admin-input />
+          </label>
+          <button type="submit">Unlock Admin</button>
+        </form>
+        <p data-world-admin-status aria-live="polite">Admin features are locked.</p>
+      </section>
+
+      <section class="avatar-customization" aria-label="Avatar customization">
+        <h2>Avatar Customization</h2>
+        <label>
+          CHARACTER
+          <input type="text" maxlength="1" data-avatar-character value="${viewer.character}" />
+        </label>
+        <label>
+          FONT
+          <select data-avatar-font>
+            <option value="monospace">Monospace</option>
+            <option value="serif">Serif</option>
+            <option value="sans-serif">Sans-serif</option>
+            <option value="cursive">Cursive</option>
+            <option value="fantasy">Fantasy</option>
+          </select>
+        </label>
+        <label>
+          COLOR (R, G, B, Y, PINK)
+          <select data-avatar-color>
+            <option value="R">R</option>
+            <option value="G">G</option>
+            <option value="B">B</option>
+            <option value="Y">Y</option>
+            <option value="PINK" selected>PINK</option>
+            <option value="FREE" data-admin-only>FREE</option>
+          </select>
+        </label>
+        <label>
+          COLOR (FREE) - ADMIN
+          <input type="text" placeholder="#c0ffee" data-avatar-free-color data-admin-only />
+        </label>
+        <label>
+          FONT WEIGHT
+          <select data-avatar-font-weight>
+            <option value="300">300</option>
+            <option value="400">400</option>
+            <option value="500">500</option>
+            <option value="700" selected>700</option>
+            <option value="900">900</option>
+            <option value="normal">normal</option>
+            <option value="bold">bold</option>
+          </select>
+        </label>
+        <label>
+          AVATAR SHAPE - ADMIN
+          <select data-avatar-shape data-admin-only>
+            <option value="square">square</option>
+            <option value="circle">circle</option>
+            <option value="diamond">diamond</option>
+            <option value="star">star</option>
+          </select>
+        </label>
+        <label>
+          AVATAR SIZE - ADMIN
+          <input type="number" min="1" max="5" step="1" value="1" data-avatar-size data-admin-only />
+        </label>
+        <p>Preview: <span class="avatar-preview" data-avatar-preview data-shape="square" data-size="1">${viewer.character}</span></p>
+      </section>
 
       <p data-world-status aria-live="polite"></p>
 
@@ -81,22 +157,48 @@ function renderWorldFromViewers(world, viewers) {
   const grid = Array.from({ length: world.height }, () => Array.from({ length: world.width }, () => '.'));
 
   viewers.forEach((viewer) => {
-    grid[viewer.y][viewer.x] = viewer.character;
+    grid[viewer.y][viewer.x] = viewer.avatar?.character ?? viewer.character;
   });
 
   return grid.map((row) => row.join('')).join('\n');
 }
 
-function createWorldRuntime({ random, now }) {
+function resolveAdminPassword(env = process.env) {
+  if (typeof env.ADMIN_PASSWORD === 'string' && env.ADMIN_PASSWORD.length > 0) {
+    return env.ADMIN_PASSWORD;
+  }
+
+  return DEFAULT_ADMIN_PASSWORD;
+}
+
+function safePasswordMatch(rawInput, expectedPassword) {
+  const input = Buffer.from(typeof rawInput === 'string' ? rawInput : '', 'utf8');
+  const expected = Buffer.from(expectedPassword, 'utf8');
+  const maxLength = Math.max(input.length, expected.length, 1);
+  const safeInput = Buffer.alloc(maxLength);
+  const safeExpected = Buffer.alloc(maxLength);
+
+  input.copy(safeInput);
+  expected.copy(safeExpected);
+
+  const equal = timingSafeEqual(safeInput, safeExpected);
+  return equal && input.length === expected.length;
+}
+
+function createWorldRuntime({ random, now, adminPassword }) {
   const world = createWorldConfig();
   const viewers = new Map();
   const chatMessages = [];
+  const adminViewerIds = new Set();
+  const adminAttempts = new Map();
 
   function pruneStaleViewers() {
     const cutoff = now() - STALE_VIEWER_MS;
     viewers.forEach((viewer, id) => {
       if (viewer.lastSeenAt < cutoff) {
         viewers.delete(id);
+        adminViewerIds.delete(id);
+        adminAttempts.delete(id);
       }
     });
   }
@@ -106,9 +208,17 @@ function createWorldRuntime({ random, now }) {
       return null;
     }
 
+    const isAdmin = adminViewerIds.has(rawViewer.id);
+    const safeAvatar = sanitizeAvatar(
+      { ...(rawViewer.avatar ?? {}), character: rawViewer.avatar?.character ?? rawViewer.character },
+      { isAdmin, fallbackCharacter: assignViewerCharacter(random) }
+    );
+
     const viewer = {
       id: rawViewer.id,
-      character: typeof rawViewer.character === 'string' && rawViewer.character.length > 0 ? rawViewer.character[0] : assignViewerCharacter(random),
+      character: safeAvatar.character,
+      avatar: safeAvatar,
+      isAdmin,
       name: sanitizeName(rawViewer.name),
       x: clamp(Number.isFinite(rawViewer.x) ? rawViewer.x : 0, 0, world.width - 1),
       y: clamp(Number.isFinite(rawViewer.y) ? rawViewer.y : 0, 0, world.height - 1),
@@ -144,6 +254,8 @@ function createWorldRuntime({ random, now }) {
       id: viewer.id,
       name: viewer.name,
       character: viewer.character,
+      avatar: viewer.avatar,
+      isAdmin: viewer.isAdmin,
       x: viewer.x,
       y: viewer.y
     }));
@@ -156,12 +268,48 @@ function createWorldRuntime({ random, now }) {
     };
   }
 
+  function authenticateAdmin({ viewerId, password }) {
+    if (typeof viewerId !== 'string' || !viewerId.trim()) {
+      return { authorized: false };
+    }
+
+    const current = adminAttempts.get(viewerId) ?? { count: 0, blockedUntil: 0 };
+
+    if (current.blockedUntil > now()) {
+      return { authorized: false };
+    }
+
+    if (safePasswordMatch(password, adminPassword)) {
+      adminViewerIds.add(viewerId);
+      adminAttempts.set(viewerId, { count: 0, blockedUntil: 0 });
+      const existing = viewers.get(viewerId);
+
+      if (existing) {
+        existing.isAdmin = true;
+        existing.avatar = sanitizeAvatar(existing.avatar, { isAdmin: true, fallbackCharacter: existing.character });
+        existing.character = existing.avatar.character;
+      }
+
+      return { authorized: true };
+    }
+
+    const nextCount = current.count + 1;
+    const blockedUntil = nextCount >= MAX_ADMIN_ATTEMPTS ? now() + ADMIN_BLOCK_MS : 0;
+    adminAttempts.set(viewerId, { count: blockedUntil ? 0 : nextCount, blockedUntil });
+    return { authorized: false };
+  }
+
   return {
     world,
+    authenticateAdmin,
     registerViewer() {
+      const character = assignViewerCharacter(random);
+      const avatar = sanitizeAvatar({ character }, { isAdmin: false, fallbackCharacter: character });
       const viewer = {
         id: randomUUID(),
-        character: assignViewerCharacter(random),
+        character,
+        avatar,
+        isAdmin: false,
         name: 'Starling',
         x: 0,
         y: 0,
@@ -179,7 +327,8 @@ function createWorldRuntime({ random, now }) {
           percentage: 0,
           contents: 'Sync error. Client payload incomplete.',
           users: [],
-          messages: []
+          messages: [],
+          isAdmin: false
         };
       }
 
@@ -190,12 +339,16 @@ function createWorldRuntime({ random, now }) {
           percentage: 0,
           contents: 'Sync error. Viewer payload invalid.',
           users: [],
-          messages: []
+          messages: [],
+          isAdmin: false
         };
       }
 
       addChatMessage(viewer, body.chatMessage);
-      return createSnapshot();
+      return {
+        ...createSnapshot(),
+        isAdmin: viewer.isAdmin
+      };
     },
     snapshot() {
       return createSnapshot();
@@ -203,9 +356,13 @@ function createWorldRuntime({ random, now }) {
   };
 }
 
-export function createServer({ random = Math.random, now } = {}) {
+export function createServer({ random = Math.random, now, adminPassword, env = process.env } = {}) {
   const app = express();
-  const runtime = createWorldRuntime({ random, now: typeof now === 'function' ? now : Date.now });
+  const runtime = createWorldRuntime({
+    random,
+    now: typeof now === 'function' ? now : Date.now,
+    adminPassword: typeof adminPassword === 'string' ? adminPassword : resolveAdminPassword(env)
+  });
 
   app.use(express.json());
   app.use('/src', express.static('src'));
@@ -221,6 +378,10 @@ export function createServer({ random = Math.random, now } = {}) {
 
   app.get('/world/updates', (_req, res) => {
     res.json(runtime.snapshot());
+  });
+
+  app.post('/world/admin-auth', (req, res) => {
+    res.json(runtime.authenticateAdmin(req.body ?? {}));
   });
 
   app.post('/world/updates', (req, res) => {

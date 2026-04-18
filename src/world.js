@@ -173,12 +173,12 @@ export function createWorldController({ doc, initialViewer, world }) {
   const nameInput = doc.querySelector('[data-world-name]');
   const controls = [...doc.querySelectorAll('[data-world-move]')];
   const signalRoot = doc.querySelector('[data-world-signals]');
-  const usersList = doc.querySelector('[data-world-users]');
-  const chatList = doc.querySelector('[data-world-chat]');
-  const chatForm = doc.querySelector('[data-world-chat-form]');
-  const chatInput = doc.querySelector('[data-world-chat-input]');
+  const usersList = doc.querySelector('[data-world-users]') ?? doc.createElement('ul');
+  const chatList = doc.querySelector('[data-world-chat]') ?? doc.createElement('ul');
+  const chatForm = doc.querySelector('[data-world-chat-form]') ?? doc.createElement('form');
+  const chatInput = doc.querySelector('[data-world-chat-input]') ?? doc.createElement('input');
 
-  if (!canvas || !status || !nameInput || controls.length === 0 || !signalRoot || !usersList || !chatList || !chatForm || !chatInput) {
+  if (!canvas || !status || !nameInput || controls.length === 0 || !signalRoot) {
     throw new Error('World UI is missing required elements.');
   }
 

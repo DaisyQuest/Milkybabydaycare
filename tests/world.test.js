@@ -129,7 +129,7 @@ describe('world primitives', () => {
 });
 
 describe('createWorldController and initWorld', () => {
-  it('throws when expected ui nodes are missing', () => {
+  it('throws when core ui nodes are missing', () => {
     document.body.innerHTML = '<main></main>';
     expect(() =>
       createWorldController({
@@ -138,6 +138,26 @@ describe('createWorldController and initWorld', () => {
         initialViewer: { id: '1', character: '@', name: 'N', x: 0, y: 0 }
       })
     ).toThrow('World UI is missing required elements.');
+  });
+
+  it('does not throw when optional users/chat panels are missing', () => {
+    document.body.innerHTML = `
+      <main>
+        <label data-world-signals></label>
+        <input data-world-name />
+        <p data-world-status></p>
+        <button data-world-move="up">up</button>
+        <pre data-world-canvas></pre>
+      </main>
+    `;
+
+    expect(() =>
+      createWorldController({
+        doc: document,
+        world: { width: 5, height: 5 },
+        initialViewer: { id: '1', character: '@', name: 'N', x: 0, y: 0 }
+      })
+    ).not.toThrow();
   });
 
   it('initializes through world-client and supports movement, rename, users panel, and chat', async () => {

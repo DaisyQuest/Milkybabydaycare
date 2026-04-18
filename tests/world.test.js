@@ -12,6 +12,7 @@ import {
   nextPosition,
   normalizeBoardSize,
   renderAsciiCanvas,
+  renderAsciiCanvasMarkup,
   sanitizeAvatar,
   sanitizeAvatarCharacter,
   sanitizeAvatarColor,
@@ -230,6 +231,62 @@ describe('world primitives', () => {
 
     expect(canvas).toBe('.L');
   });
+
+  it('renders styled ascii markup for the current viewer avatar cell', () => {
+    const markup = renderAsciiCanvasMarkup('...\n..#', {
+      x: 1,
+      y: 0,
+      character: '*',
+      avatar: {
+        character: '🧸',
+        font: 'serif',
+        fontWeight: 'bold',
+        colorValue: '#123abc',
+        shape: 'diamond',
+        size: 4
+      }
+    });
+
+    expect(markup).toContain('<span class="world-avatar world-avatar--diamond"');
+    expect(markup).toContain('data-world-avatar-size="4"');
+    expect(markup).toContain('font-family:serif');
+    expect(markup).toContain('font-weight:bold');
+    expect(markup).toContain('color:#123abc');
+    expect(markup).toContain('🧸');
+    expect(markup).toContain('..#');
+  });
+
+  it('escapes html and keeps raw content when viewer coordinates are out of bounds', () => {
+    const markup = renderAsciiCanvasMarkup('<&>\nabc', {
+      x: 5,
+      y: 0,
+      character: 'A',
+      avatar: { character: 'A', shape: 'square', size: 1 }
+    });
+
+    expect(markup).toBe('&lt;&amp;&gt;\nabc');
+    expect(markup).not.toContain('world-avatar');
+  });
+
+  it('uses safe defaults when markup rendering receives sparse viewer/avatar data', () => {
+    const markup = renderAsciiCanvasMarkup('.', { x: 0, y: 0 });
+
+    expect(markup).toContain('world-avatar--square');
+    expect(markup).toContain('data-world-avatar-size="1"');
+    expect(markup).toContain('font-family:monospace');
+    expect(markup).toContain('font-weight:700');
+    expect(markup).toContain('color:#ec4899');
+    expect(markup).toContain('>@<');
+  });
+
+  it('renders safely when viewer payload is missing entirely', () => {
+    const markup = renderAsciiCanvasMarkup('abc', undefined);
+    expect(markup).toBe('abc');
+  });
+
+  it('supports null contents by defaulting to an empty ascii frame', () => {
+    expect(renderAsciiCanvasMarkup(null, undefined)).toBe('');
+  });
 });
 
 describe('createWorldController and initWorld', () => {
@@ -330,6 +387,7 @@ describe('createWorldController and initWorld', () => {
     expect(status.textContent).toContain('Aurora (&)');
     fireEvent.input(avatarCharacter, { target: { value: '🧸' } });
     expect(canvas.textContent).toContain('🧸');
+    expect(canvas.innerHTML).toContain('world-avatar');
     fireEvent.change(avatarFont, { target: { value: 'serif' } });
 
     fireEvent.submit(chatForm);
@@ -353,6 +411,8 @@ describe('createWorldController and initWorld', () => {
     fireEvent.change(avatarFontWeight, { target: { value: 'bold' } });
     fireEvent.change(avatarShape, { target: { value: 'circle' } });
     fireEvent.change(avatarSize, { target: { value: '3' } });
+    expect(canvas.innerHTML).toContain('world-avatar--circle');
+    expect(canvas.innerHTML).toContain('data-world-avatar-size="3"');
 
     controller.rename('');
     expect(status.textContent).toContain('Starling (🧸)');

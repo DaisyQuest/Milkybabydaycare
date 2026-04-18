@@ -231,6 +231,42 @@ export function renderAsciiCanvas({ viewer, world }) {
   return rows.join('\n');
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function avatarStyleAttribute(viewer) {
+  const avatar = viewer.avatar ?? {};
+  const font = avatar.font ?? 'monospace';
+  const weight = avatar.fontWeight ?? '700';
+  const color = avatar.colorValue ?? '#ec4899';
+  return `font-family:${escapeHtml(font)};font-weight:${escapeHtml(weight)};color:${escapeHtml(color)};`;
+}
+
+export function renderAsciiCanvasMarkup(contents, viewer) {
+  const lines = String(contents ?? '').split('\n');
+  const targetY = Number.isFinite(viewer?.y) ? viewer.y : -1;
+  const targetX = Number.isFinite(viewer?.x) ? viewer.x : -1;
+  const avatarCharacter = viewer?.avatar?.character ?? viewer?.character ?? '@';
+
+  return lines
+    .map((line, y) => {
+      if (y !== targetY || targetX < 0 || targetX >= line.length) {
+        return escapeHtml(line);
+      }
+
+      const before = escapeHtml(line.slice(0, targetX));
+      const after = escapeHtml(line.slice(targetX + 1));
+      return `${before}<span class="world-avatar world-avatar--${escapeHtml(viewer?.avatar?.shape ?? 'square')}" data-world-avatar-size="${escapeHtml(String(viewer?.avatar?.size ?? 1))}" style="${avatarStyleAttribute(viewer)}">${escapeHtml(avatarCharacter)}</span>${after}`;
+    })
+    .join('\n');
+}
+
 function intentFromKeyboard(key) {
   const normalized = String(key).toLowerCase();
   const map = {
@@ -389,7 +425,8 @@ export function createWorldController({ doc, initialViewer, world }) {
   }
 
   function render() {
-    canvas.textContent = renderAsciiCanvas(state);
+    const ascii = renderAsciiCanvas(state);
+    canvas.innerHTML = renderAsciiCanvasMarkup(ascii, state.viewer);
     status.textContent = `${state.viewer.name} (${state.viewer.character}) at [${state.viewer.x}, ${state.viewer.y}]`;
     nameInput.value = state.viewer.name;
     refreshPanels();
@@ -424,7 +461,7 @@ export function createWorldController({ doc, initialViewer, world }) {
     state.syncPercentage = result.percentage;
 
     if (typeof result.contents === 'string') {
-      canvas.textContent = result.contents;
+      canvas.innerHTML = renderAsciiCanvasMarkup(result.contents, state.viewer);
     }
 
     if (Array.isArray(result.users)) {

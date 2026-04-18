@@ -60,7 +60,7 @@ function worldPageTemplate({ viewer, world }) {
         <h2>Avatar Customization</h2>
         <label>
           CHARACTER
-          <input type="text" maxlength="1" data-avatar-character value="${viewer.character}" />
+          <input type="text" data-avatar-character value="${viewer.character}" />
         </label>
         <label>
           FONT
@@ -157,7 +157,7 @@ function renderWorldFromViewers(world, viewers) {
   const grid = Array.from({ length: world.height }, () => Array.from({ length: world.width }, () => '.'));
 
   viewers.forEach((viewer) => {
-    grid[viewer.y][viewer.x] = viewer.avatar?.character ?? viewer.character;
+    grid[viewer.y][viewer.x] = viewer.avatar.character;
   });
 
   return grid.map((row) => row.join('')).join('\n');

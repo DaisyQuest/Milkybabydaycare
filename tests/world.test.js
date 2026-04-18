@@ -13,16 +13,20 @@ import {
   normalizeBoardSize,
   renderAsciiCanvas,
   sanitizeAvatar,
+  sanitizeAvatarCharacter,
   sanitizeAvatarColor,
   sanitizeChatMessage,
   sanitizeName
 } from '../src/world.js';
 import { initWorld } from '../src/world-client.js';
 
-function mountWorldDom(bootstrap) {
+function mountWorldDom(bootstrap, { includeSyncUrls = true } = {}) {
+  const updateAttr = includeSyncUrls ? 'data-world-updates-url="/world/updates"' : '';
+  const adminAttr = includeSyncUrls ? 'data-world-admin-auth-url="/world/admin-auth"' : '';
+
   document.body.innerHTML = `
     <main>
-      <label data-world-signals data-signals="{}" data-world-updates-url="/world/updates" data-world-admin-auth-url="/world/admin-auth"></label>
+      <label data-world-signals data-signals="{}" ${updateAttr} ${adminAttr}></label>
       <input data-world-name />
       <form data-world-admin-form>
         <input data-world-admin-input />
@@ -129,6 +133,10 @@ describe('world primitives', () => {
     });
 
     expect(sanitizeAvatarColor('R', '', false).colorValue).toBe('#ef4444');
+    expect(sanitizeAvatarColor('FREE', 'rgb(12, 34, 56)', true).colorValue).toBe('rgb(12, 34, 56)');
+    expect(sanitizeAvatarColor('FREE', 'rebeccapurple', true).colorValue).toBe('rebeccapurple');
+    expect(sanitizeAvatarColor('FREE', 'x'.repeat(33), true).colorValue).toBe('#ec4899');
+    expect(sanitizeAvatarColor('FREE', null, true).colorValue).toBe('#ec4899');
   });
 
   it('preserves full unicode code points for avatar characters', () => {
@@ -142,6 +150,7 @@ describe('world primitives', () => {
 
     expect(adminAvatar.character).toBe('🍼');
     expect(sanitizeAvatar({ character: '  👶  ' }, { isAdmin: false, fallbackCharacter: '@' }).character).toBe('👶');
+    expect(sanitizeAvatarCharacter(undefined, '#')).toBe('#');
   });
 
   it('assigns viewer characters deterministically with rng and safe fallback', () => {
@@ -211,6 +220,15 @@ describe('world primitives', () => {
     });
 
     expect(canvas).toBe('..\n🍼.');
+  });
+
+  it('falls back to legacy viewer.character when avatar data is missing', () => {
+    const canvas = renderAsciiCanvas({
+      world: { width: 2, height: 1 },
+      viewer: { x: 1, y: 0, character: 'L', id: '1', name: 'Legacy' }
+    });
+
+    expect(canvas).toBe('.L');
   });
 });
 
@@ -305,10 +323,13 @@ describe('createWorldController and initWorld', () => {
     expect(status.textContent).toContain('[1, 0]');
     fireEvent.keyDown(document, { key: 'a' });
     expect(status.textContent).toContain('[0, 0]');
+    fireEvent.keyDown(document, { key: 'q' });
+    expect(status.textContent).toContain('[0, 0]');
 
     fireEvent.input(nameInput, { target: { value: '  Aurora  ' } });
     expect(status.textContent).toContain('Aurora (&)');
-    fireEvent.input(avatarCharacter, { target: { value: '$' } });
+    fireEvent.input(avatarCharacter, { target: { value: '🧸' } });
+    expect(canvas.textContent).toContain('🧸');
     fireEvent.change(avatarFont, { target: { value: 'serif' } });
 
     fireEvent.submit(chatForm);
@@ -334,7 +355,7 @@ describe('createWorldController and initWorld', () => {
     fireEvent.change(avatarSize, { target: { value: '3' } });
 
     controller.rename('');
-    expect(status.textContent).toContain('Starling ($)');
+    expect(status.textContent).toContain('Starling (🧸)');
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const signalPayload = JSON.parse(signals.dataset.signals);
@@ -344,6 +365,7 @@ describe('createWorldController and initWorld', () => {
     expect(signalPayload._avatar.fontWeight).toBe('bold');
     expect(signalPayload._avatar.size).toBe(3);
     expect(signalPayload._avatar.colorValue).toBe('#123abc');
+    expect(signalPayload._character).toBe('🧸');
     expect(usersList.textContent).toContain('ADMIN');
     expect(chatList.textContent).toContain('Aurora: Hello everyone!');
 
@@ -372,6 +394,96 @@ describe('createWorldController and initWorld', () => {
 
     fireEvent.submit(document.querySelector('[data-world-admin-form]'));
     expect(document.querySelector('[data-world-admin-status]').textContent).toContain('unavailable');
+  });
+
+  it('uses default sync/auth endpoints and renders users that only provide legacy character values', async () => {
+    mountWorldDom(
+      {
+        world: { width: 5, height: 5 },
+        viewer: { id: 'legacy', character: '&', name: 'Comet', x: 1, y: 1 }
+      },
+      { includeSyncUrls: false }
+    );
+
+    const fetchMock = vi.fn(async (url) => {
+      if (url === '/world/admin-auth') {
+        return {
+          ok: true,
+          async json() {
+            return { authorized: false };
+          }
+        };
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return {
+            percentage: 100,
+            contents: 'legacy-map',
+            users: [{ id: 'u1', name: 'LegacyUser', character: 'L', x: 0, y: 0, isAdmin: false }],
+            messages: []
+          };
+        }
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    initWorld(document);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fetchMock).toHaveBeenCalledWith('/world/updates', expect.any(Object));
+    expect(document.querySelector('[data-world-users]').textContent).toContain('LegacyUser (L)');
+
+    fireEvent.submit(document.querySelector('[data-world-admin-form]'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchMock).toHaveBeenCalledWith('/world/admin-auth', expect.any(Object));
+  });
+
+  it('coerces undefined admin input values to empty strings before auth', async () => {
+    mountWorldDom({
+      world: { width: 5, height: 5 },
+      viewer: { id: 'edge', character: '&', name: 'Comet', x: 1, y: 1 }
+    });
+
+    const fetchMock = vi.fn(async (url, options) => {
+      if (url === '/world/admin-auth') {
+        const payload = JSON.parse(options.body);
+        return {
+          ok: true,
+          async json() {
+            return { authorized: payload.password === '' };
+          }
+        };
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return { percentage: 100, contents: 'map', users: [], messages: [] };
+        }
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    initWorld(document);
+    const adminInput = document.querySelector('[data-world-admin-input]');
+    Object.defineProperty(adminInput, 'value', {
+      configurable: true,
+      get() {
+        return undefined;
+      },
+      set() {}
+    });
+
+    fireEvent.submit(document.querySelector('[data-world-admin-form]'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/world/admin-auth',
+      expect.objectContaining({ body: expect.stringContaining('"password":""') })
+    );
+    expect(document.querySelector('[data-world-admin-status]').textContent).toContain('enabled');
   });
 });
 

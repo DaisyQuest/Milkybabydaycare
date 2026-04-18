@@ -20,6 +20,8 @@ describe('express server', () => {
     expect(world.text).toContain('data-world-admin-auth-url="/world/admin-auth"');
     expect(world.text).toContain('data-world-admin-form');
     expect(world.text).toContain('data-avatar-shape');
+    expect(world.text).toContain('data-avatar-character');
+    expect(world.text).not.toContain('maxlength="1" data-avatar-character');
     expect(world.text).toContain('@sudodevnull/datastar');
   });
 
@@ -101,6 +103,18 @@ describe('express server', () => {
     expect(auth.body).toEqual({ authorized: false });
   });
 
+  it('handles admin auth payload edge cases with missing body and non-string passwords', async () => {
+    const app = createServer({ now: () => 1_000, adminPassword: '1234' });
+
+    const noBody = await request(app).post('/world/admin-auth');
+    expect(noBody.status).toBe(200);
+    expect(noBody.body).toEqual({ authorized: false });
+
+    const numericPassword = await request(app).post('/world/admin-auth').send({ viewerId: 'v-edge', password: 1234 });
+    expect(numericPassword.status).toBe(200);
+    expect(numericPassword.body).toEqual({ authorized: false });
+  });
+
   it('rate-limits repeated failed admin auth attempts', async () => {
     let now = 1_000;
     const app = createServer({ now: () => now, adminPassword: 'secret' });
@@ -161,6 +175,28 @@ describe('express server', () => {
     expect(secondSync.body.users).toHaveLength(2);
     expect(secondSync.body.contents.split('\n')[2][1]).toBe('C');
     expect(secondSync.body.contents.split('\n')[2][3]).toBe('N');
+  });
+
+  it('renders custom avatar from avatar payload when legacy character differs', async () => {
+    const app = createServer({ now: () => 1_000 });
+
+    const sync = await request(app).post('/world/updates').send({
+      viewer: {
+        id: 'v-avatar',
+        name: 'Painter',
+        character: 'L',
+        avatar: { character: '🎨' },
+        x: 4,
+        y: 1
+      },
+      world: { width: 48, height: 24 },
+      contents: 'map'
+    });
+
+    expect(sync.status).toBe(200);
+    expect(sync.body.users[0].character).toBe('🎨');
+    expect(sync.body.users[0].avatar.character).toBe('🎨');
+    expect(sync.body.contents.split('\n')[1]).toContain('🎨');
   });
 
   it('keeps unicode avatar characters intact in multiplayer world snapshots', async () => {
@@ -308,5 +344,30 @@ describe('express server', () => {
       }
     ]);
     expect(response.body.messages).toEqual([]);
+  });
+
+  it('sanitizes invalid free colors and non-finite coordinates for admin users', async () => {
+    const app = createServer({ random: () => 0, now: () => 1_000, adminPassword: 'pw' });
+    await request(app).post('/world/admin-auth').send({ viewerId: 'v-admin', password: 'pw' });
+
+    const response = await request(app).post('/world/updates').send({
+      viewer: {
+        id: 'v-admin',
+        name: 'Admin',
+        character: 'A',
+        avatar: { colorKey: 'FREE', freeColor: 'x'.repeat(33), character: '🪐' },
+        x: Number.NaN,
+        y: Number.POSITIVE_INFINITY
+      },
+      world: { width: 48, height: 24 },
+      contents: 'map'
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.users[0].x).toBe(0);
+    expect(response.body.users[0].y).toBe(0);
+    expect(response.body.users[0].avatar.colorKey).toBe('FREE');
+    expect(response.body.users[0].avatar.colorValue).toBe('#ec4899');
+    expect(response.body.contents.split('\n')[0]).toContain('🪐');
   });
 });

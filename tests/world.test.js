@@ -131,6 +131,19 @@ describe('world primitives', () => {
     expect(sanitizeAvatarColor('R', '', false).colorValue).toBe('#ef4444');
   });
 
+  it('preserves full unicode code points for avatar characters', () => {
+    const adminAvatar = sanitizeAvatar(
+      {
+        character: '🍼',
+        colorKey: 'PINK'
+      },
+      { isAdmin: true, fallbackCharacter: '@' }
+    );
+
+    expect(adminAvatar.character).toBe('🍼');
+    expect(sanitizeAvatar({ character: '  👶  ' }, { isAdmin: false, fallbackCharacter: '@' }).character).toBe('👶');
+  });
+
   it('assigns viewer characters deterministically with rng and safe fallback', () => {
     expect(assignViewerCharacter(() => 0)).toBe('!');
     expect(assignViewerCharacter(() => 1)).toBe('@');
@@ -189,6 +202,15 @@ describe('world primitives', () => {
     });
 
     expect(canvas).toBe('.*.\n...');
+  });
+
+  it('renders unicode avatar characters in the ascii canvas', () => {
+    const canvas = renderAsciiCanvas({
+      world: { width: 2, height: 2 },
+      viewer: { x: 0, y: 1, character: '?', avatar: { character: '🍼' }, id: '1', name: 'N' }
+    });
+
+    expect(canvas).toBe('..\n🍼.');
   });
 });
 

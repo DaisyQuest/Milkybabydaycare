@@ -1,8 +1,9 @@
 const MIN_BOARD_SIZE = 5;
+const MAX_BOARD_SIZE = 120;
 const MAX_NAME_LENGTH = 24;
 const DEFAULT_WORLD = {
-  width: 24,
-  height: 12,
+  width: 48,
+  height: 24,
   baseName: 'Starling',
   startX: 0,
   startY: 0
@@ -27,7 +28,7 @@ export function normalizeBoardSize(raw, fallback) {
     return fallback;
   }
 
-  return clamp(size, MIN_BOARD_SIZE, 80);
+  return clamp(size, MIN_BOARD_SIZE, MAX_BOARD_SIZE);
 }
 
 export function sanitizeName(rawName, fallback = DEFAULT_WORLD.baseName) {
@@ -135,7 +136,8 @@ function intentFromKeyboard(key) {
 export function createWorldController({ doc, initialViewer, world }) {
   const state = {
     viewer: createViewerState({ ...initialViewer, world }),
-    world
+    world,
+    syncPercentage: 0
   };
 
   const canvas = doc.querySelector('[data-world-canvas]');
@@ -148,9 +150,17 @@ export function createWorldController({ doc, initialViewer, world }) {
     throw new Error('World UI is missing required elements.');
   }
 
+  const syncState =
+    typeof doc.defaultView?.fetch === 'function'
+      ? createWorldSync({
+          fetchFn: doc.defaultView.fetch.bind(doc.defaultView),
+          url: signalRoot.dataset.worldUpdatesUrl ?? '/world/updates'
+        })
+      : null;
+
   function syncSignals() {
     signalRoot.dataset.signals = JSON.stringify({
-      _percentage: 100,
+      _percentage: state.syncPercentage,
       _contents: canvas.textContent,
       _name: state.viewer.name,
       _character: state.viewer.character,
@@ -163,6 +173,29 @@ export function createWorldController({ doc, initialViewer, world }) {
     canvas.textContent = renderAsciiCanvas(state);
     status.textContent = `${state.viewer.name} (${state.viewer.character}) at [${state.viewer.x}, ${state.viewer.y}]`;
     nameInput.value = state.viewer.name;
+    syncSignals();
+    void syncWithServer();
+  }
+
+  async function syncWithServer() {
+    if (!syncState) {
+      state.syncPercentage = 100;
+      syncSignals();
+      return;
+    }
+
+    const result = await syncState({
+      viewer: state.viewer,
+      world: state.world,
+      contents: canvas.textContent
+    });
+
+    state.syncPercentage = result.percentage;
+
+    if (typeof result.contents === 'string') {
+      canvas.textContent = result.contents;
+    }
+
     syncSignals();
   }
 
@@ -212,5 +245,31 @@ export function createWorldController({ doc, initialViewer, world }) {
       render();
     },
     render
+  };
+}
+
+export function createWorldSync({ fetchFn, url }) {
+  return async function sync(payload) {
+    try {
+      const response = await fetchFn(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        return { percentage: 0 };
+      }
+
+      const parsed = await response.json();
+      return {
+        percentage: clamp(Number(parsed.percentage) || 0, 0, 100),
+        contents: typeof parsed.contents === 'string' ? parsed.contents : payload.contents
+      };
+    } catch {
+      return { percentage: 0 };
+    }
   };
 }

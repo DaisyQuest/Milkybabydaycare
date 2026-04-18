@@ -2,17 +2,21 @@
 
 A playful pastel anime-style joke website: **"Welcome to the Milky Baby Daycare — are you picking up or dropping off?"**
 
+Now includes an Express-powered `/world` route featuring an interactive ASCII world with per-viewer character assignment.
+
 ## Runtime and platform
 - **Node:** 22+
-- **Deployment target:** Azure Static Web Apps (see `staticwebapp.config.json`)
+- **Deployment target:** Azure App Service / any Node host via `npm start`
 
 ## Local development
 ```bash
 npm install
-npm test
+npm start
 ```
 
-Open `index.html` (or `milkybabydaycare.html`) in a browser to view the page.
+Then open:
+- `http://localhost:3000/` for the original prompt flow
+- `http://localhost:3000/world` for the interactive ASCII world
 
 ## Testing quality gates
 - `vitest` with `v8` coverage

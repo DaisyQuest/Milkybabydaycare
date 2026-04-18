@@ -2,7 +2,7 @@
 
 A playful pastel anime-style joke website: **"Welcome to the Milky Baby Daycare — are you picking up or dropping off?"**
 
-Now includes an Express-powered `/world` route featuring an interactive ASCII world with per-viewer character assignment.
+Now includes an Express-powered `/world` route featuring an interactive multiplayer ASCII world with per-viewer character assignment, online-user presence, and chat.
 
 ## Runtime and platform
 - **Node:** 22+

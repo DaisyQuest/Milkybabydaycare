@@ -1,6 +1,7 @@
 const MIN_BOARD_SIZE = 5;
 const MAX_BOARD_SIZE = 120;
 const MAX_NAME_LENGTH = 24;
+const MAX_CHAT_LENGTH = 240;
 const DEFAULT_WORLD = {
   width: 48,
   height: 24,
@@ -39,6 +40,11 @@ export function sanitizeName(rawName, fallback = DEFAULT_WORLD.baseName) {
   }
 
   return value.slice(0, MAX_NAME_LENGTH);
+}
+
+export function sanitizeChatMessage(rawMessage) {
+  const value = typeof rawMessage === 'string' ? rawMessage.trim() : '';
+  return value.slice(0, MAX_CHAT_LENGTH);
 }
 
 export function assignViewerCharacter(random = Math.random) {
@@ -133,11 +139,33 @@ function intentFromKeyboard(key) {
   return map[normalized] ?? null;
 }
 
+function renderOnlineUsers(target, users) {
+  target.textContent = '';
+
+  users.forEach((user) => {
+    const item = target.ownerDocument.createElement('li');
+    item.textContent = `${user.name} (${user.character}) @ [${user.x}, ${user.y}]`;
+    target.append(item);
+  });
+}
+
+function renderChatMessages(target, messages) {
+  target.textContent = '';
+
+  messages.forEach((message) => {
+    const item = target.ownerDocument.createElement('li');
+    item.textContent = `${message.name}: ${message.text}`;
+    target.append(item);
+  });
+}
+
 export function createWorldController({ doc, initialViewer, world }) {
   const state = {
     viewer: createViewerState({ ...initialViewer, world }),
     world,
-    syncPercentage: 0
+    syncPercentage: 0,
+    users: [],
+    messages: []
   };
 
   const canvas = doc.querySelector('[data-world-canvas]');
@@ -145,8 +173,12 @@ export function createWorldController({ doc, initialViewer, world }) {
   const nameInput = doc.querySelector('[data-world-name]');
   const controls = [...doc.querySelectorAll('[data-world-move]')];
   const signalRoot = doc.querySelector('[data-world-signals]');
+  const usersList = doc.querySelector('[data-world-users]');
+  const chatList = doc.querySelector('[data-world-chat]');
+  const chatForm = doc.querySelector('[data-world-chat-form]');
+  const chatInput = doc.querySelector('[data-world-chat-input]');
 
-  if (!canvas || !status || !nameInput || controls.length === 0 || !signalRoot) {
+  if (!canvas || !status || !nameInput || controls.length === 0 || !signalRoot || !usersList || !chatList || !chatForm || !chatInput) {
     throw new Error('World UI is missing required elements.');
   }
 
@@ -165,19 +197,27 @@ export function createWorldController({ doc, initialViewer, world }) {
       _name: state.viewer.name,
       _character: state.viewer.character,
       _x: state.viewer.x,
-      _y: state.viewer.y
+      _y: state.viewer.y,
+      _users: state.users,
+      _messages: state.messages
     });
+  }
+
+  function refreshPanels() {
+    renderOnlineUsers(usersList, state.users);
+    renderChatMessages(chatList, state.messages);
   }
 
   function render() {
     canvas.textContent = renderAsciiCanvas(state);
     status.textContent = `${state.viewer.name} (${state.viewer.character}) at [${state.viewer.x}, ${state.viewer.y}]`;
     nameInput.value = state.viewer.name;
+    refreshPanels();
     syncSignals();
     void syncWithServer();
   }
 
-  async function syncWithServer() {
+  async function syncWithServer(chatMessage = '') {
     if (!syncState) {
       state.syncPercentage = 100;
       syncSignals();
@@ -187,7 +227,8 @@ export function createWorldController({ doc, initialViewer, world }) {
     const result = await syncState({
       viewer: state.viewer,
       world: state.world,
-      contents: canvas.textContent
+      contents: canvas.textContent,
+      chatMessage
     });
 
     state.syncPercentage = result.percentage;
@@ -196,6 +237,15 @@ export function createWorldController({ doc, initialViewer, world }) {
       canvas.textContent = result.contents;
     }
 
+    if (Array.isArray(result.users)) {
+      state.users = result.users;
+    }
+
+    if (Array.isArray(result.messages)) {
+      state.messages = result.messages;
+    }
+
+    refreshPanels();
     syncSignals();
   }
 
@@ -227,13 +277,27 @@ export function createWorldController({ doc, initialViewer, world }) {
     render();
   });
 
+  chatForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const message = sanitizeChatMessage(chatInput.value);
+
+    if (!message) {
+      return;
+    }
+
+    chatInput.value = '';
+    void syncWithServer(message);
+  });
+
   render();
 
   return {
     getState() {
       return {
         viewer: { ...state.viewer },
-        world: { ...state.world }
+        world: { ...state.world },
+        users: [...state.users],
+        messages: [...state.messages]
       };
     },
     move,
@@ -266,7 +330,9 @@ export function createWorldSync({ fetchFn, url }) {
       const parsed = await response.json();
       return {
         percentage: clamp(Number(parsed.percentage) || 0, 0, 100),
-        contents: typeof parsed.contents === 'string' ? parsed.contents : payload.contents
+        contents: typeof parsed.contents === 'string' ? parsed.contents : payload.contents,
+        users: Array.isArray(parsed.users) ? parsed.users : [],
+        messages: Array.isArray(parsed.messages) ? parsed.messages : []
       };
     } catch {
       return { percentage: 0 };

@@ -86,3 +86,27 @@ button[aria-pressed='true'] {
 [data-palette='twilight'] {
   background: color-mix(in oklab, #fff2f8 78%, #ffcad4);
 }
+
+input[type='text'] {
+  width: 100%;
+  max-width: 26rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--ink) 25%, white);
+  border-radius: 0.7rem;
+  margin-top: 0.35rem;
+}
+
+ul[data-world-users],
+ul[data-world-chat] {
+  margin: 0.6rem 0 0;
+  padding-left: 1.15rem;
+  max-height: 12rem;
+  overflow: auto;
+}
+
+form[data-world-chat-form] {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+  flex-wrap: wrap;
+}

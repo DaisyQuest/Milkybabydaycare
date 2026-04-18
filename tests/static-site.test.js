@@ -12,9 +12,10 @@ describe('static site entrypoint files', () => {
     const html = readProjectFile('index.html');
 
     expect(html).toContain('<title>Milky Baby Daycare</title>');
-    expect(html).toContain("<main class=\"container\" data-app-root>");
+    expect(html).toContain('<main class="container" data-app-root>');
     expect(html).toContain("import { initMilkyBabyDaycare } from './src/site.js';");
     expect(html).toContain('initMilkyBabyDaycare(document, window, new Date());');
+    expect(html).toContain('<a href="/world">Visit the interactive ASCII world →</a>');
   });
 
   it('keeps legacy milkybabydaycare.html content aligned with index.html', () => {
@@ -22,6 +23,11 @@ describe('static site entrypoint files', () => {
     const legacyHtml = readProjectFile('milkybabydaycare.html').trim();
 
     expect(legacyHtml).toBe(indexHtml);
+  });
+
+  it('defines an npm start script for azure deployment startup', () => {
+    const packageJson = JSON.parse(readProjectFile('package.json'));
+    expect(packageJson.scripts.start).toBe('node server.js');
   });
 });
 

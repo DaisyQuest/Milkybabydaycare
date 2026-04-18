@@ -7,14 +7,19 @@
     "node": ">=22"
   },
   "scripts": {
+    "start": "node server.js",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "lint": "node --check src/site.js"
+    "lint": "node --check src/site.js && node --check src/world.js && node --check src/world-client.js && node --check src/server.js && node --check server.js"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
     "@vitest/coverage-v8": "^3.2.4",
     "jsdom": "^26.1.0",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "supertest": "^7.2.2"
   }
 }

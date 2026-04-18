@@ -18,6 +18,7 @@ function worldPageTemplate({ viewer, world }) {
 
       <label
         data-world-signals
+        data-world-updates-url="/world/updates"
         data-signals='{"_percentage":100,"_contents":"loading...","_name":"${viewer.name}","_character":"${viewer.character}"}'
         data-init="@get('/world/updates')"
       >
@@ -76,7 +77,15 @@ export function createServer({ random = Math.random } = {}) {
   app.get('/world/updates', (_req, res) => {
     res.json({
       percentage: 100,
-      contents: 'World client manages rendering locally for responsiveness.'
+      contents: 'World client ready for sync.'
+    });
+  });
+
+  app.post('/world/updates', (req, res) => {
+    const percentage = req.body?.viewer && req.body?.world && typeof req.body?.contents === 'string' ? 100 : 0;
+    res.json({
+      percentage,
+      contents: percentage === 100 ? req.body.contents : 'Sync error. Client payload incomplete.'
     });
   });
 

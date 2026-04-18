@@ -182,3 +182,38 @@ form[data-world-chat-form] {
   width: 3.6rem;
   height: 3.6rem;
 }
+
+[data-world-canvas] .world-avatar {
+  display: inline-block;
+  --world-avatar-scale: 1;
+  --world-avatar-rotate: 0deg;
+  transform: rotate(var(--world-avatar-rotate)) scale(var(--world-avatar-scale));
+}
+
+[data-world-canvas] .world-avatar--circle {
+  border-radius: 50%;
+}
+
+[data-world-canvas] .world-avatar--diamond {
+  --world-avatar-rotate: 45deg;
+}
+
+[data-world-canvas] .world-avatar--star {
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+
+[data-world-canvas] .world-avatar[data-world-avatar-size='2'] {
+  --world-avatar-scale: 1.2;
+}
+
+[data-world-canvas] .world-avatar[data-world-avatar-size='3'] {
+  --world-avatar-scale: 1.4;
+}
+
+[data-world-canvas] .world-avatar[data-world-avatar-size='4'] {
+  --world-avatar-scale: 1.6;
+}
+
+[data-world-canvas] .world-avatar[data-world-avatar-size='5'] {
+  --world-avatar-scale: 1.8;
+}

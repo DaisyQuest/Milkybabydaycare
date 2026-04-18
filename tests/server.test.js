@@ -163,6 +163,33 @@ describe('express server', () => {
     expect(secondSync.body.contents.split('\n')[2][3]).toBe('N');
   });
 
+  it('keeps unicode avatar characters intact in multiplayer world snapshots', async () => {
+    const app = createServer({ random: () => 0, now: () => 1_000, adminPassword: 'pw' });
+
+    await request(app).post('/world/admin-auth').send({ viewerId: 'unicode-admin', password: 'pw' });
+
+    const sync = await request(app).post('/world/updates').send({
+      viewer: {
+        id: 'unicode-admin',
+        name: 'Unicode',
+        character: 'U',
+        avatar: {
+          character: '🍼',
+          colorKey: 'FREE',
+          freeColor: '#abcdef'
+        },
+        x: 2,
+        y: 3
+      },
+      world: { width: 48, height: 24 },
+      contents: 'map'
+    });
+
+    expect(sync.status).toBe(200);
+    expect(sync.body.users[0].avatar.character).toBe('🍼');
+    expect(sync.body.contents.split('\n')[3]).toContain('🍼');
+  });
+
   it('applies admin upgrade to an already connected viewer', async () => {
     const app = createServer({ now: () => 1_000, adminPassword: 'pw' });
 

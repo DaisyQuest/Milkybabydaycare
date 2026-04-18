@@ -65,7 +65,7 @@ export function assignViewerCharacter(random = Math.random) {
 
 export function sanitizeAvatarCharacter(rawCharacter, fallback = '@') {
   const value = typeof rawCharacter === 'string' ? rawCharacter.trim() : '';
-  return value ? value[0] : fallback;
+  return value ? Array.from(value)[0] : fallback;
 }
 
 export function sanitizeAvatarFont(rawFont) {

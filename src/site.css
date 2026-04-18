@@ -110,3 +110,75 @@ form[data-world-chat-form] {
   align-items: end;
   flex-wrap: wrap;
 }
+
+.admin-auth,
+.avatar-customization {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  border-radius: 0.9rem;
+  background: color-mix(in oklab, white 88%, var(--mint));
+}
+
+.avatar-customization {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.avatar-customization label,
+.admin-auth label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.avatar-customization select,
+.admin-auth input[type='password'],
+.avatar-customization input[type='number'] {
+  width: 100%;
+  max-width: 16rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid color-mix(in oklab, var(--ink) 25%, white);
+  border-radius: 0.7rem;
+}
+
+.avatar-preview {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid color-mix(in oklab, var(--ink) 35%, white);
+  background: white;
+  border-radius: 0.35rem;
+}
+
+.avatar-preview[data-shape='circle'] {
+  border-radius: 50%;
+}
+
+.avatar-preview[data-shape='diamond'] {
+  transform: rotate(45deg);
+}
+
+.avatar-preview[data-shape='star'] {
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+
+.avatar-preview[data-size='2'] {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.avatar-preview[data-size='3'] {
+  width: 2.8rem;
+  height: 2.8rem;
+}
+
+.avatar-preview[data-size='4'] {
+  width: 3.2rem;
+  height: 3.2rem;
+}
+
+.avatar-preview[data-size='5'] {
+  width: 3.6rem;
+  height: 3.6rem;
+}

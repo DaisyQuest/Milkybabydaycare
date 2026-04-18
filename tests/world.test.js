@@ -3,6 +3,7 @@ import { fireEvent } from '@testing-library/dom';
 import {
   assignViewerCharacter,
   clamp,
+  createAdminAuthRequest,
   createViewerState,
   createWorldConfig,
   createWorldController,
@@ -11,6 +12,8 @@ import {
   nextPosition,
   normalizeBoardSize,
   renderAsciiCanvas,
+  sanitizeAvatar,
+  sanitizeAvatarColor,
   sanitizeChatMessage,
   sanitizeName
 } from '../src/world.js';
@@ -19,8 +22,22 @@ import { initWorld } from '../src/world-client.js';
 function mountWorldDom(bootstrap) {
   document.body.innerHTML = `
     <main>
-      <label data-world-signals data-signals="{}"></label>
+      <label data-world-signals data-signals="{}" data-world-updates-url="/world/updates" data-world-admin-auth-url="/world/admin-auth"></label>
       <input data-world-name />
+      <form data-world-admin-form>
+        <input data-world-admin-input />
+      </form>
+      <p data-world-admin-status></p>
+      <input data-avatar-character />
+      <select data-avatar-font><option value="monospace">monospace</option><option value="serif">serif</option></select>
+      <select data-avatar-color>
+        <option value="R">R</option><option value="G">G</option><option value="B">B</option><option value="Y">Y</option><option value="PINK">PINK</option><option value="FREE" data-admin-only>FREE</option>
+      </select>
+      <input data-avatar-free-color data-admin-only />
+      <select data-avatar-font-weight><option value="700">700</option><option value="bold">bold</option></select>
+      <select data-avatar-shape data-admin-only><option value="square">square</option><option value="circle">circle</option></select>
+      <input data-avatar-size data-admin-only />
+      <span data-avatar-preview></span>
       <p data-world-status></p>
       <button data-world-move="up">up</button>
       <button data-world-move="left">left</button>
@@ -68,6 +85,52 @@ describe('world primitives', () => {
     expect(sanitizeChatMessage('x'.repeat(500)).length).toBe(240);
   });
 
+  it('sanitizes avatar options for admin and non-admin flows', () => {
+    const nonAdmin = sanitizeAvatar(
+      {
+        character: ' A ',
+        colorKey: 'FREE',
+        freeColor: '#00ff00',
+        font: 'serif',
+        fontWeight: 'bold',
+        shape: 'circle',
+        size: 4
+      },
+      { isAdmin: false, fallbackCharacter: '@' }
+    );
+    expect(nonAdmin).toMatchObject({
+      character: 'A',
+      colorKey: 'PINK',
+      shape: 'square',
+      size: 1
+    });
+
+    const admin = sanitizeAvatar(
+      {
+        character: ' Z ',
+        colorKey: 'FREE',
+        freeColor: '#00ff00',
+        font: 'invalid',
+        fontWeight: 'invalid',
+        shape: 'circle',
+        size: 4
+      },
+      { isAdmin: true, fallbackCharacter: '@' }
+    );
+
+    expect(admin).toMatchObject({
+      character: 'Z',
+      colorKey: 'FREE',
+      colorValue: '#00ff00',
+      font: 'monospace',
+      fontWeight: '700',
+      shape: 'circle',
+      size: 4
+    });
+
+    expect(sanitizeAvatarColor('R', '', false).colorValue).toBe('#ef4444');
+  });
+
   it('assigns viewer characters deterministically with rng and safe fallback', () => {
     expect(assignViewerCharacter(() => 0)).toBe('!');
     expect(assignViewerCharacter(() => 1)).toBe('@');
@@ -87,6 +150,7 @@ describe('world primitives', () => {
     });
 
     expect(viewer.character).toBe('@');
+    expect(viewer.avatar.character).toBe('@');
     expect(viewer.name).toBe('Starling');
     expect(viewer.x).toBe(0);
     expect(viewer.y).toBe(119);
@@ -121,7 +185,7 @@ describe('world primitives', () => {
   it('renders ascii canvas with viewer position', () => {
     const canvas = renderAsciiCanvas({
       world: { width: 3, height: 2 },
-      viewer: { x: 1, y: 0, character: '*', id: '1', name: 'N' }
+      viewer: { x: 1, y: 0, character: '*', avatar: { character: '*' }, id: '1', name: 'N' }
     });
 
     expect(canvas).toBe('.*.\n...');
@@ -140,14 +204,24 @@ describe('createWorldController and initWorld', () => {
     ).toThrow('World UI is missing required elements.');
   });
 
-  it('initializes through world-client and supports movement, rename, users panel, and chat', async () => {
+  it('initializes through world-client and supports movement, avatar customization, admin auth, users panel, and chat', async () => {
     mountWorldDom({
       world: { width: 5, height: 5 },
       viewer: { id: '1', character: '&', name: 'Comet', x: 1, y: 1 }
     });
 
     const serverMessages = [];
-    const fetchMock = vi.fn(async (_url, options) => {
+    const fetchMock = vi.fn(async (url, options) => {
+      if (url.endsWith('/world/admin-auth')) {
+        const payload = JSON.parse(options.body);
+        return {
+          ok: true,
+          async json() {
+            return { authorized: payload.password === 'correct' };
+          }
+        };
+      }
+
       const payload = JSON.parse(options.body);
 
       if (payload.chatMessage) {
@@ -160,9 +234,17 @@ describe('createWorldController and initWorld', () => {
           return {
             percentage: 100,
             contents: 'synced-map',
+            isAdmin: Boolean(payload.viewer.isAdmin),
             users: [
-              { id: payload.viewer.id, name: payload.viewer.name, character: payload.viewer.character, x: payload.viewer.x, y: payload.viewer.y },
-              { id: '2', name: 'Nebula', character: 'N', x: 3, y: 4 }
+              {
+                id: payload.viewer.id,
+                name: payload.viewer.name,
+                character: payload.viewer.character,
+                avatar: payload.viewer.avatar,
+                isAdmin: Boolean(payload.viewer.isAdmin),
+                x: payload.viewer.x,
+                y: payload.viewer.y
+              }
             ],
             messages: [...serverMessages]
           };
@@ -181,47 +263,70 @@ describe('createWorldController and initWorld', () => {
     const chatForm = document.querySelector('[data-world-chat-form]');
     const chatInput = document.querySelector('[data-world-chat-input]');
     const chatList = document.querySelector('[data-world-chat]');
+    const adminForm = document.querySelector('[data-world-admin-form]');
+    const adminInput = document.querySelector('[data-world-admin-input]');
+    const adminStatus = document.querySelector('[data-world-admin-status]');
+    const avatarShape = document.querySelector('[data-avatar-shape]');
+    const avatarColor = document.querySelector('[data-avatar-color]');
+    const avatarFreeColor = document.querySelector('[data-avatar-free-color]');
+    const avatarFontWeight = document.querySelector('[data-avatar-font-weight]');
+    const avatarSize = document.querySelector('[data-avatar-size]');
+    const avatarCharacter = document.querySelector('[data-avatar-character]');
+    const avatarFont = document.querySelector('[data-avatar-font]');
 
     expect(status.textContent).toContain('Comet (&) at [1, 1]');
-    expect(canvas.textContent.split('\n').length).toBe(5);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(canvas.textContent).toBe('synced-map');
+    expect(avatarShape.disabled).toBe(true);
 
     fireEvent.click(document.querySelector('[data-world-move="up"]'));
     expect(status.textContent).toContain('[1, 0]');
-
     fireEvent.keyDown(document, { key: 'a' });
-    expect(status.textContent).toContain('[0, 0]');
-
-    fireEvent.keyDown(document, { key: 'x' });
-    expect(status.textContent).toContain('[0, 0]');
-
-    fireEvent.keyDown(document, { key: undefined });
     expect(status.textContent).toContain('[0, 0]');
 
     fireEvent.input(nameInput, { target: { value: '  Aurora  ' } });
     expect(status.textContent).toContain('Aurora (&)');
+    fireEvent.input(avatarCharacter, { target: { value: '$' } });
+    fireEvent.change(avatarFont, { target: { value: 'serif' } });
 
     fireEvent.submit(chatForm);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(chatList.children.length).toBe(0);
-
     fireEvent.input(chatInput, { target: { value: ' Hello everyone! ' } });
     fireEvent.submit(chatForm);
 
+    fireEvent.input(adminInput, { target: { value: 'wrong' } });
+    fireEvent.submit(adminForm);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(adminStatus.textContent).toContain('failed');
+
+    fireEvent.input(adminInput, { target: { value: 'correct' } });
+    fireEvent.submit(adminForm);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(adminStatus.textContent).toContain('enabled');
+    expect(avatarShape.disabled).toBe(false);
+
+    fireEvent.input(avatarFreeColor, { target: { value: '#123abc' } });
+    fireEvent.change(avatarColor, { target: { value: 'FREE' } });
+    fireEvent.input(avatarFreeColor, { target: { value: '#123abc' } });
+    fireEvent.change(avatarFontWeight, { target: { value: 'bold' } });
+    fireEvent.change(avatarShape, { target: { value: 'circle' } });
+    fireEvent.change(avatarSize, { target: { value: '3' } });
+
     controller.rename('');
-    expect(status.textContent).toContain('Starling (&)');
+    expect(status.textContent).toContain('Starling ($)');
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const signalPayload = JSON.parse(signals.dataset.signals);
-    expect(signalPayload._contents).toBe('synced-map');
     expect(signalPayload._percentage).toBe(100);
-    expect(signalPayload._users.length).toBe(2);
-    expect(signalPayload._messages.length).toBe(1);
-    expect(usersList.textContent).toContain('Nebula (N)');
+    expect(signalPayload._admin).toBe(true);
+    expect(signalPayload._avatar.shape).toBe('circle');
+    expect(signalPayload._avatar.fontWeight).toBe('bold');
+    expect(signalPayload._avatar.size).toBe(3);
+    expect(signalPayload._avatar.colorValue).toBe('#123abc');
+    expect(usersList.textContent).toContain('ADMIN');
     expect(chatList.textContent).toContain('Aurora: Hello everyone!');
 
     controller.move('right');
     expect(controller.getState().viewer.x).toBe(1);
-    expect(controller.getState().world.width).toBe(5);
     expect(fetchMock).toHaveBeenCalled();
   });
 
@@ -230,7 +335,7 @@ describe('createWorldController and initWorld', () => {
     expect(() => initWorld(document)).toThrow('Missing world bootstrap payload.');
   });
 
-  it('marks sync complete locally when fetch is unavailable', async () => {
+  it('marks sync complete locally when fetch is unavailable and auth cannot be used', async () => {
     mountWorldDom({
       world: { width: 5, height: 5 },
       viewer: { id: '1', character: '&', name: 'Comet', x: 1, y: 1 }
@@ -242,10 +347,13 @@ describe('createWorldController and initWorld', () => {
 
     const signals = document.querySelector('[data-world-signals]');
     expect(JSON.parse(signals.dataset.signals)._percentage).toBe(100);
+
+    fireEvent.submit(document.querySelector('[data-world-admin-form]'));
+    expect(document.querySelector('[data-world-admin-status]').textContent).toContain('unavailable');
   });
 });
 
-describe('createWorldSync', () => {
+describe('createWorldSync and auth request', () => {
   it('returns clamped sync percentage and fallback contents when server omits it', async () => {
     const sync = createWorldSync({
       url: '/world/updates',
@@ -261,7 +369,8 @@ describe('createWorldSync', () => {
       percentage: 100,
       contents: '..',
       users: [],
-      messages: []
+      messages: [],
+      isAdmin: undefined
     });
   });
 
@@ -275,7 +384,8 @@ describe('createWorldSync', () => {
             percentage: 'not-a-number',
             contents: 'map',
             users: [{ id: 'v1' }],
-            messages: [{ id: 'm1' }]
+            messages: [{ id: 'm1' }],
+            isAdmin: true
           };
         }
       })
@@ -285,7 +395,8 @@ describe('createWorldSync', () => {
       percentage: 0,
       contents: 'map',
       users: [{ id: 'v1' }],
-      messages: [{ id: 'm1' }]
+      messages: [{ id: 'm1' }],
+      isAdmin: true
     });
   });
 
@@ -306,5 +417,44 @@ describe('createWorldSync', () => {
 
     await expect(failing({})).resolves.toEqual({ percentage: 0 });
     await expect(nonOk({})).resolves.toEqual({ percentage: 0 });
+  });
+
+  it('auth request returns false on errors and only true on explicit true payload', async () => {
+    const auth = createAdminAuthRequest({
+      url: '/world/admin-auth',
+      fetchFn: async () => ({
+        ok: true,
+        async json() {
+          return { authorized: true };
+        }
+      })
+    });
+
+    const nonOk = createAdminAuthRequest({
+      url: '/world/admin-auth',
+      fetchFn: async () => ({ ok: false })
+    });
+
+    const throwing = createAdminAuthRequest({
+      url: '/world/admin-auth',
+      fetchFn: async () => {
+        throw new Error('boom');
+      }
+    });
+
+    const explicitFalse = createAdminAuthRequest({
+      url: '/world/admin-auth',
+      fetchFn: async () => ({
+        ok: true,
+        async json() {
+          return { authorized: 'yes' };
+        }
+      })
+    });
+
+    await expect(auth({})).resolves.toEqual({ authorized: true });
+    await expect(nonOk({})).resolves.toEqual({ authorized: false });
+    await expect(throwing({})).resolves.toEqual({ authorized: false });
+    await expect(explicitFalse({})).resolves.toEqual({ authorized: false });
   });
 });

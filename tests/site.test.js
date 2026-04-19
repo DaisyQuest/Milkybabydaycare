@@ -8,7 +8,9 @@ import {
   normalizeChoice,
   particleEmojiForChoice,
   reactionForChoice,
-  resolvePaletteByHour
+  resolvePaletteByHour,
+  splitHeadline,
+  tuneLetterStep
 } from '../src/site.js';
 
 function buildDom() {
@@ -233,6 +235,26 @@ describe('createMilkyBabyDaycareApp', () => {
     expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('splits the headline and tunes letter step when headline exists', () => {
+    document.body.innerHTML = `
+      <main data-app-root>
+        <h1>Hi Milky ✨</h1>
+        <section data-burst-layer></section>
+        <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
+        <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
+        <section data-response data-choice="none" data-visible="false"></section>
+      </main>
+    `;
+    document.documentElement.style.removeProperty('--letter-step');
+
+    createMilkyBabyDaycareApp(document, { matchMedia: () => ({ matches: false }) }, new Date('2026-01-01T10:00:00Z'));
+
+    const h1 = document.querySelector('h1');
+    expect(h1.classList.contains('h1-split')).toBe(true);
+    expect(h1.querySelector('.h1-sparkle')).toBeTruthy();
+    expect(document.documentElement.style.getPropertyValue('--letter-step')).toMatch(/ms$/);
+  });
+
   it('uses global timeout fallback and mixed coordinate fallback branches', () => {
     vi.useFakeTimers();
     buildDom();
@@ -245,6 +267,73 @@ describe('createMilkyBabyDaycareApp', () => {
     vi.runAllTimers();
     expect(document.querySelector('.click-burst')).toBeNull();
     vi.useRealTimers();
+  });
+});
+
+describe('splitHeadline', () => {
+  it('returns 0 and does nothing when headline or doc is missing', () => {
+    expect(splitHeadline(null, document)).toBe(0);
+    const headline = document.createElement('h1');
+    headline.textContent = 'Hello';
+    expect(splitHeadline(headline, null)).toBe(0);
+    expect(headline.textContent).toBe('Hello');
+  });
+
+  it('splits words into letter spans with char-index and preserves spaces', () => {
+    const headline = document.createElement('h1');
+    headline.textContent = 'Hi world';
+    const total = splitHeadline(headline, document);
+
+    expect(total).toBe(7);
+    expect(headline.classList.contains('h1-split')).toBe(true);
+
+    const words = headline.querySelectorAll('.h1-word');
+    expect(words).toHaveLength(2);
+    expect(words[0].textContent).toBe('Hi');
+    expect(words[1].textContent).toBe('world');
+
+    const spaces = headline.querySelectorAll('.h1-space');
+    expect(spaces).toHaveLength(1);
+    expect(spaces[0].textContent).toBe(' ');
+
+    const chars = headline.querySelectorAll('.h1-char');
+    expect(chars).toHaveLength(7);
+    expect(chars[0].style.getPropertyValue('--char-index')).toBe('0');
+    expect(chars[6].style.getPropertyValue('--char-index')).toBe('6');
+  });
+
+  it('marks the sparkle emoji with a dedicated class', () => {
+    const headline = document.createElement('h1');
+    headline.textContent = 'Hi ✨';
+    splitHeadline(headline, document);
+
+    const sparkle = headline.querySelector('.h1-sparkle');
+    expect(sparkle).toBeTruthy();
+    expect(sparkle.textContent).toBe('✨');
+    expect(sparkle.classList.contains('h1-char')).toBe(true);
+  });
+
+  it('ignores empty tokens without producing empty spans', () => {
+    const headline = document.createElement('h1');
+    headline.textContent = '';
+    const total = splitHeadline(headline, document);
+    expect(total).toBe(0);
+    expect(headline.children).toHaveLength(0);
+  });
+});
+
+describe('tuneLetterStep', () => {
+  it('returns null for invalid char counts', () => {
+    expect(tuneLetterStep(0)).toBeNull();
+    expect(tuneLetterStep(-4)).toBeNull();
+    expect(tuneLetterStep(Number.NaN)).toBeNull();
+  });
+
+  it('computes a stepped duration bounded by min and max', () => {
+    expect(tuneLetterStep(30, 900)).toBeCloseTo(30);
+    expect(tuneLetterStep(4, 900)).toBe(45);
+    expect(tuneLetterStep(200, 900)).toBe(16);
+    expect(tuneLetterStep(10, 200, 5, 100)).toBe(20);
   });
 });
 

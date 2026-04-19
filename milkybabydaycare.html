@@ -7,6 +7,20 @@
     <link rel="stylesheet" href="./src/site.css" />
   </head>
   <body>
+    <div class="ambient-scene" aria-hidden="true">
+      <span class="scene-blob scene-blob--1"></span>
+      <span class="scene-blob scene-blob--2"></span>
+      <span class="scene-blob scene-blob--3"></span>
+      <span class="scene-blob scene-blob--4"></span>
+      <span class="scene-emoji" data-depth="back" style="--i:0;left:7%;top:14%;">☁️</span>
+      <span class="scene-emoji" data-depth="front" style="--i:1;left:88%;top:22%;">✨</span>
+      <span class="scene-emoji" data-depth="mid" style="--i:2;left:20%;top:78%;">🌈</span>
+      <span class="scene-emoji" data-depth="back" style="--i:3;left:82%;top:68%;">🫧</span>
+      <span class="scene-emoji" data-depth="mid" style="--i:4;left:50%;top:8%;">⭐</span>
+      <span class="scene-emoji" data-depth="front" style="--i:5;left:4%;top:52%;">💖</span>
+      <span class="scene-emoji" data-depth="back" style="--i:6;left:94%;top:46%;">🍼</span>
+      <span class="scene-emoji" data-depth="mid" style="--i:7;left:62%;top:86%;">🧸</span>
+    </div>
     <main class="container" data-app-root>
       <section class="floating-decor" aria-hidden="true">
         <span>☁️</span>
@@ -17,12 +31,19 @@
         <span>💖</span>
       </section>
       <section class="hero-content">
+        <p class="eyebrow" aria-hidden="true">Enterprise Childcare Solutions · Est. 2026</p>
         <h1>Welcome to the Milky Baby Daycare ✨</h1>
         <p class="subtitle">Are you picking up or dropping off?</p>
       </section>
       <section class="button-row" aria-label="Main actions">
-        <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
-        <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
+        <button type="button" data-choice="pickup" aria-pressed="false">
+          <span class="btn-emoji" aria-hidden="true">💖</span>
+          <span class="btn-label">I’m Picking Up</span>
+        </button>
+        <button type="button" data-choice="dropoff" aria-pressed="false">
+          <span class="btn-emoji" aria-hidden="true">🫧</span>
+          <span class="btn-label">I’m Dropping Off</span>
+        </button>
       </section>
       <section class="response" data-response data-choice="none" data-visible="false" aria-live="polite">
         Choose an option to unlock maximum cuteness.

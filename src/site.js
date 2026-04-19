@@ -119,6 +119,57 @@ export function createButtonBurst({
   return burst;
 }
 
+export function splitHeadline(headline, doc) {
+  if (!headline || !doc) {
+    return 0;
+  }
+
+  const text = headline.textContent;
+  headline.textContent = '';
+  headline.classList.add('h1-split');
+
+  const tokens = text.split(/(\s+)/);
+  let charIndex = 0;
+
+  for (const token of tokens) {
+    if (token.length === 0) {
+      continue;
+    }
+
+    if (/^\s+$/.test(token)) {
+      const spaceEl = doc.createElement('span');
+      spaceEl.className = 'h1-space';
+      spaceEl.textContent = token;
+      headline.appendChild(spaceEl);
+      continue;
+    }
+
+    const wordEl = doc.createElement('span');
+    wordEl.className = 'h1-word';
+
+    for (const char of Array.from(token)) {
+      const charEl = doc.createElement('span');
+      charEl.className = char === '✨' ? 'h1-char h1-sparkle' : 'h1-char';
+      charEl.style.setProperty('--char-index', String(charIndex));
+      charEl.textContent = char;
+      wordEl.appendChild(charEl);
+      charIndex += 1;
+    }
+
+    headline.appendChild(wordEl);
+  }
+
+  return charIndex;
+}
+
+export function tuneLetterStep(totalChars, targetDurationMs = 900, min = 16, max = 45) {
+  if (!Number.isFinite(totalChars) || totalChars <= 0) {
+    return null;
+  }
+  const raw = targetDurationMs / totalChars;
+  return Math.max(min, Math.min(max, raw));
+}
+
 export function createMilkyBabyDaycareApp(doc, win = window, now = new Date()) {
   const root = doc.querySelector('[data-app-root]');
   const responseEl = doc.querySelector('[data-response]');
@@ -137,6 +188,13 @@ export function createMilkyBabyDaycareApp(doc, win = window, now = new Date()) {
 
   root.dataset.motion = state.reducedMotion ? 'reduced' : 'full';
   root.dataset.palette = state.palette;
+
+  const headline = root.querySelector('h1');
+  const totalChars = splitHeadline(headline, doc);
+  const step = tuneLetterStep(totalChars);
+  if (step !== null && doc.documentElement) {
+    doc.documentElement.style.setProperty('--letter-step', `${step}ms`);
+  }
 
   function render(choice) {
     state.choice = normalizeChoice(choice);

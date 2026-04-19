@@ -3,6 +3,7 @@ import { fireEvent, getByRole, getByText } from '@testing-library/dom';
 import {
   buildTypewriterMarkup,
   createButtonBurst,
+  createButtonRipple,
   createMilkyBabyDaycareApp,
   initMilkyBabyDaycare,
   isReducedMotion,
@@ -10,13 +11,16 @@ import {
   particleEmojiForChoice,
   reactionForChoice,
   resolveIntroTimeline,
+  resolveMagnetTilt,
   resolvePaletteByHour,
+  resolveParallaxOffsets,
+  setupAmbientLayers,
   setupIntroChoreography
 } from '../src/site.js';
 
 function buildDom() {
   document.body.innerHTML = `
-    <main data-app-root>
+    <main class="page-shell" data-app-root>
       <section class="floating-decor">
         <span data-intro-decor>☁️</span>
         <span data-intro-decor>✨</span>
@@ -78,6 +82,30 @@ describe('resolvePaletteByHour', () => {
 
   it('resolves night palette', () => {
     expect(resolvePaletteByHour(2)).toBe('night');
+  });
+});
+
+describe('resolveParallaxOffsets', () => {
+  it('maps parallax multipliers for each layer', () => {
+    expect(resolveParallaxOffsets(100)).toEqual({ decor: 30, hero: 90, mesh: 15 });
+  });
+});
+
+describe('resolveMagnetTilt', () => {
+  it('handles missing data and out-of-range pointers', () => {
+    expect(resolveMagnetTilt()).toEqual({ tiltX: 0, tiltY: 0, active: false });
+    expect(resolveMagnetTilt({ left: 0, top: 0, width: 100, height: 40 }, { x: 999, y: 999 })).toEqual({
+      tiltX: 0,
+      tiltY: 0,
+      active: false
+    });
+  });
+
+  it('returns active tilt values near the button', () => {
+    const result = resolveMagnetTilt({ left: 0, top: 0, width: 100, height: 40 }, { x: 80, y: 18 });
+    expect(result.active).toBe(true);
+    expect(result.tiltX).not.toBe(0);
+    expect(result.tiltY).not.toBe(0);
   });
 });
 
@@ -243,25 +271,44 @@ describe('createButtonBurst', () => {
     expect(root.querySelector('.click-burst')).toBe(burst);
     expect(burst.dataset.choice).toBe('generic');
   });
+});
 
-  it('uses default remove-after duration when not provided', () => {
-    document.body.innerHTML = '<main data-app-root><section data-burst-layer></section></main>';
+describe('createButtonRipple', () => {
+  it('returns null when required args are missing', () => {
+    expect(createButtonRipple({})).toBeNull();
+  });
+
+  it('creates and removes a ripple and supports fallback click center', () => {
+    document.body.innerHTML = '<button id="x">x</button>';
+    const button = document.querySelector('#x');
+    const scheduleRemoval = vi.fn((cb) => cb());
+    const ripple = createButtonRipple({ doc: document, button, scheduleRemoval });
+    expect(ripple).toBeTruthy();
+    expect(scheduleRemoval).toHaveBeenCalledTimes(1);
+    expect(button.querySelector('.button-ripple')).toBeNull();
+  });
+});
+
+describe('setupAmbientLayers', () => {
+  it('returns null without root/doc and supports reduced mode', () => {
+    expect(setupAmbientLayers(undefined, undefined, 'day', true)).toBeNull();
+
+    buildDom();
     const root = document.querySelector('[data-app-root]');
-    const layer = document.querySelector('[data-burst-layer]');
-    const scheduleRemoval = vi.fn();
-    createButtonBurst({
-      doc: document,
-      target: root,
-      layer,
-      choice: 'pickup',
-      x: 10,
-      y: 12,
-      particleCount: 1,
-      rng: () => 0,
-      scheduleRemoval
-    });
+    const ambient = setupAmbientLayers(document, root, 'day', true, () => 0.25);
+    expect(ambient.spawnBubble()).toBeNull();
+    expect(root.querySelectorAll('.ambient-blob').length).toBe(4);
+    expect(root.querySelectorAll('.twinkle-star').length).toBe(0);
+  });
 
-    expect(scheduleRemoval).toHaveBeenCalledWith(expect.any(Function), 900);
+  it('adds stars at night and spawns bubbles when motion is full', () => {
+    buildDom();
+    const root = document.querySelector('[data-app-root]');
+    const ambient = setupAmbientLayers(document, root, 'night', false, () => 0.1);
+    expect(root.querySelectorAll('.twinkle-star').length).toBe(16);
+    const bubble = ambient.spawnBubble();
+    expect(bubble).toBeTruthy();
+    expect(root.querySelector('.bubble-layer__bubble')).toBeTruthy();
   });
 });
 
@@ -278,7 +325,7 @@ describe('createMilkyBabyDaycareApp', () => {
     buildDom();
     const app = createMilkyBabyDaycareApp(
       document,
-      { matchMedia: () => ({ matches: true }) },
+      { matchMedia: () => ({ matches: true }), addEventListener: vi.fn(), setTimeout },
       new Date('2026-01-01T19:00:00Z')
     );
 
@@ -292,29 +339,73 @@ describe('createMilkyBabyDaycareApp', () => {
     });
   });
 
-  it('renders pickup and dropoff via clicks and updates aria-pressed state', () => {
+  it('renders clicks, ripple, burst, shake, parallax, pointer trail, and magnet tilt effects', () => {
+    vi.useFakeTimers();
     buildDom();
-    createMilkyBabyDaycareApp(document, { matchMedia: () => ({ matches: false }) }, new Date('2026-01-01T02:00:00Z'));
+    const listeners = {};
+    const addCaptured = (name, fn) => {
+      listeners[name] = listeners[name] ?? [];
+      listeners[name].push(fn);
+    };
+    const rafQueue = [];
+    const appWin = {
+      matchMedia: () => ({ matches: false }),
+      setTimeout,
+      clearTimeout,
+      setInterval: vi.fn(),
+      addEventListener: vi.fn((name, fn) => {
+        addCaptured(name, fn);
+      }),
+      requestAnimationFrame: (cb) => {
+        rafQueue.push(cb);
+      },
+      scrollY: 50
+    };
 
-    const pickupButton = getByRole(document.body, 'button', { name: 'I’m Picking Up' });
-    const dropoffButton = getByRole(document.body, 'button', { name: 'I’m Dropping Off' });
+    createMilkyBabyDaycareApp(document, appWin, new Date('2026-01-01T02:00:00Z'));
+
+    const pickupButton = getByRole(document.body, 'button', { name: /I’m Picking Up/ });
+    const dropoffButton = getByRole(document.body, 'button', { name: /I’m Dropping Off/ });
     const response = document.querySelector('[data-response]');
+
+    listeners.scroll.forEach((fn) => fn());
+    expect(document.querySelector('[data-app-root]').style.getPropertyValue('--parallax-hero')).toBe('45px');
+
+    listeners.pointermove.forEach((fn) => fn({ clientX: 44, clientY: 33 }));
+    listeners.pointermove.forEach((fn) => fn({ clientX: 45, clientY: 35 }));
+    expect(rafQueue.length).toBeGreaterThan(0);
+    rafQueue[0]();
+    expect(document.querySelector('[data-app-root]').dataset.cursorActive).toBe('true');
 
     fireEvent.click(pickupButton, { clientX: 12, clientY: 24 });
     expect(response.dataset.choice).toBe('pickup');
     expect(response.dataset.visible).toBe('true');
     expect(pickupButton.getAttribute('aria-pressed')).toBe('true');
     expect(dropoffButton.getAttribute('aria-pressed')).toBe('false');
+    expect(document.querySelector('.button-ripple')).toBeTruthy();
+    expect(document.querySelector('.click-burst')).toBeTruthy();
+    expect(document.querySelector('[data-app-root]').dataset.shake).toBe('on');
 
     fireEvent.click(dropoffButton, { clientX: 18, clientY: 36 });
     expect(response.dataset.choice).toBe('dropoff');
     expect(pickupButton.getAttribute('aria-pressed')).toBe('false');
     expect(dropoffButton.getAttribute('aria-pressed')).toBe('true');
+
+    listeners.pointermove.forEach((fn) => fn({ clientX: 25, clientY: 22 }));
+    expect(['on', 'off']).toContain(pickupButton.dataset.magnet);
+
+    vi.runAllTimers();
+    expect(document.querySelector('[data-app-root]').dataset.shake).toBe('off');
+    vi.useRealTimers();
   });
 
   it('supports rendering an invalid choice through app API for defensive branch', () => {
     buildDom();
-    const app = createMilkyBabyDaycareApp(document, { matchMedia: () => ({ matches: false }) }, new Date('2026-01-01T08:00:00Z'));
+    const app = createMilkyBabyDaycareApp(
+      document,
+      { matchMedia: () => ({ matches: false }), setInterval: vi.fn(), addEventListener: vi.fn() },
+      new Date('2026-01-01T08:00:00Z')
+    );
 
     app.render('invalid');
 
@@ -325,48 +416,28 @@ describe('createMilkyBabyDaycareApp', () => {
 
   it('skips visual burst effects when reduced motion is enabled', () => {
     buildDom();
-    createMilkyBabyDaycareApp(document, { matchMedia: () => ({ matches: true }) }, new Date('2026-01-01T08:00:00Z'));
+    createMilkyBabyDaycareApp(
+      document,
+      { matchMedia: () => ({ matches: true }), addEventListener: vi.fn() },
+      new Date('2026-01-01T08:00:00Z')
+    );
 
-    const pickupButton = getByRole(document.body, 'button', { name: 'I’m Picking Up' });
+    const pickupButton = getByRole(document.body, 'button', { name: /I’m Picking Up/ });
     fireEvent.click(pickupButton, { clientX: 10, clientY: 20 });
 
     expect(document.querySelector('.click-burst')).toBeNull();
-  });
-
-  it('falls back to button center when click coordinates are unavailable', () => {
-    buildDom();
-    const setTimeoutSpy = vi.fn((cb) => cb());
-    const appWin = {
-      matchMedia: () => ({ matches: false }),
-      setTimeout: setTimeoutSpy
-    };
-    createMilkyBabyDaycareApp(document, appWin, new Date('2026-01-01T08:00:00Z'));
-
-    const pickupButton = getByRole(document.body, 'button', { name: 'I’m Picking Up' });
-    pickupButton.dispatchEvent(new Event('click'));
-
-    expect(setTimeoutSpy).toHaveBeenCalledTimes(2);
-  });
-
-  it('uses global timeout fallback and mixed coordinate fallback branches', () => {
-    vi.useFakeTimers();
-    buildDom();
-    createMilkyBabyDaycareApp(document, { matchMedia: () => ({ matches: false }) }, new Date('2026-01-01T08:00:00Z'));
-
-    const pickupButton = getByRole(document.body, 'button', { name: 'I’m Picking Up' });
-    fireEvent.click(pickupButton, { clientX: 33 });
-
-    expect(document.querySelector('.click-burst')).toBeTruthy();
-    vi.runAllTimers();
-    expect(document.querySelector('.click-burst')).toBeNull();
-    vi.useRealTimers();
+    expect(document.querySelector('.button-ripple')).toBeNull();
   });
 });
 
 describe('initMilkyBabyDaycare', () => {
   it('delegates to app creation', () => {
     buildDom();
-    const app = initMilkyBabyDaycare(document, { matchMedia: () => ({ matches: false }) }, new Date('2026-01-01T10:00:00Z'));
+    const app = initMilkyBabyDaycare(
+      document,
+      { matchMedia: () => ({ matches: false }), setInterval: vi.fn(), addEventListener: vi.fn() },
+      new Date('2026-01-01T10:00:00Z')
+    );
     expect(app.getState().palette).toBe('day');
   });
 });

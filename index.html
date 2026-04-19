@@ -23,19 +23,17 @@
           <span data-headline-sparkle>✨</span>
         </h1>
         <p class="subtitle" data-intro-subtitle>Are you picking up or dropping off?</p>
+
+        <section class="button-row" data-intro-buttons aria-label="Main actions">
+          <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
+          <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
+        </section>
+        <section class="response" data-response data-choice="none" data-visible="false" aria-live="polite">
+          Choose an option to unlock maximum cuteness.
+        </section>
       </section>
 
       <section class="experience-grid">
-        <section class="action-panel">
-          <section class="button-row" data-intro-buttons aria-label="Main actions">
-            <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
-            <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
-          </section>
-          <section class="response" data-response data-choice="none" data-visible="false" aria-live="polite">
-            Choose an option to unlock maximum cuteness.
-          </section>
-        </section>
-
         <section class="link-panel link-stack" data-intro-links>
           <p><a href="/world">Visit the interactive ASCII world →</a></p>
           <p><a href="/system_monitor">Open the live system monitor dashboard →</a></p>

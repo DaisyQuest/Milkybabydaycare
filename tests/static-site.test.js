@@ -13,8 +13,9 @@ describe('static site entrypoint files', () => {
 
     expect(html).toContain('<title>Milky Baby Daycare</title>');
     expect(html).toContain('<main class="page-shell" data-app-root>');
+    expect(html).toContain('<section class="hero-content">');
+    expect(html).toContain('<section class="button-row" data-intro-buttons aria-label="Main actions">');
     expect(html).toContain('<section class="experience-grid">');
-    expect(html).toContain('<section class="action-panel">');
     expect(html).toContain('<section class="link-panel link-stack" data-intro-links>');
     expect(html).toContain('<section class="floating-decor" aria-hidden="true">');
     expect(html).toContain('<section data-burst-layer aria-hidden="true"></section>');
@@ -59,7 +60,7 @@ describe('site stylesheet layout contract', () => {
     expect(css).toContain('width: 100%;');
     expect(css).toContain('min-height: 100vh;');
     expect(css).toContain('.experience-grid {');
-    expect(css).toContain('grid-template-columns: minmax(300px, 1.4fr) minmax(260px, 1fr);');
+    expect(css).toContain('grid-template-columns: minmax(300px, 1fr);');
     expect(css).not.toContain('place-items: center;');
   });
 });

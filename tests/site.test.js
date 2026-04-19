@@ -27,13 +27,15 @@ function buildDom() {
           <span data-headline-sparkle>✨</span>
         </h1>
         <p class="subtitle" data-intro-subtitle>Are you picking up or dropping off?</p>
+        <section class="button-row" data-intro-buttons>
+          <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
+          <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
+        </section>
+        <section class="response" data-response data-choice="none" data-visible="false"></section>
       </section>
-      <section class="button-row" data-intro-buttons>
-        <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
-        <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
+      <section class="experience-grid">
+        <section class="link-panel link-stack" data-intro-links><p>Link</p></section>
       </section>
-      <section data-response data-choice="none" data-visible="false"></section>
-      <section class="link-stack" data-intro-links><p>Link</p></section>
       <section data-burst-layer></section>
     </main>
   `;

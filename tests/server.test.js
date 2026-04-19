@@ -68,6 +68,92 @@ describe('express server', () => {
     expect(memeScript.text).toContain('createMemeGeneratorApp');
   });
 
+
+  it('creates memes over webservices and serves them by uuid for 48 hours', async () => {
+    let now = 2_000;
+    const app = createServer({ now: () => now, adminPassword: 'pw' });
+
+    const created = await request(app).post('/memes').send({
+      url: 'https://example.com/meme.png',
+      topText: 'Top',
+      bottomText: 'Bottom',
+      textColor: '#00ff99',
+      font: 'Bungee'
+    });
+
+    expect(created.status).toBe(201);
+    expect(created.body.id).toEqual(expect.any(String));
+    expect(created.body.path).toBe(`/memes/${created.body.id}`);
+    expect(created.body.config.font).toBe('Bungee');
+
+    const served = await request(app).get(created.body.path);
+    expect(served.status).toBe(200);
+    expect(served.text).toContain('Your meme is live for 48 hours.');
+    expect(served.text).toContain('https://example.com/meme.png');
+
+    now += 48 * 60 * 60 * 1000 + 1;
+    const expired = await request(app).get(created.body.path);
+    expect(expired.status).toBe(404);
+    expect(expired.body).toEqual({ error: 'Meme not found or expired.' });
+  });
+
+  it('requires admin password to set slug and allows slug with correct password', async () => {
+    const app = createServer({ now: () => 3_000, adminPassword: 'letmein' });
+
+    const denied = await request(app).post('/memes').send({
+      template: 'drake',
+      slug: 'hero-meme',
+      adminPassword: 'wrong'
+    });
+
+    expect(denied.status).toBe(403);
+    expect(denied.body).toEqual({ error: 'Admin password required to specify slug.' });
+
+    const allowed = await request(app).post('/memes').send({
+      template: 'drake',
+      slug: 'hero-meme',
+      adminPassword: 'letmein',
+      text: 'fallback top text',
+      etc: 'supported but ignored'
+    });
+
+    expect(allowed.status).toBe(201);
+    expect(allowed.body.path).toBe('/memes/hero-meme');
+    expect(allowed.body.config.topText).toBe('fallback top text');
+
+    const served = await request(app).get('/memes/hero-meme');
+    expect(served.status).toBe(200);
+    expect(served.text).toContain('fallback top text');
+
+    const duplicate = await request(app).post('/memes').send({
+      template: 'drake',
+      slug: 'hero-meme',
+      adminPassword: 'letmein'
+    });
+
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body).toEqual({ error: 'That slug is already taken.' });
+  });
+
+  it('exposes standard template catalog and validates meme payload requirements', async () => {
+    const app = createServer({ now: () => 4_000 });
+
+    const templates = await request(app).get('/memes/templates');
+    expect(templates.status).toBe(200);
+    expect(templates.body.templates).toMatchObject({
+      drake: expect.stringContaining('imgflip.com'),
+      changeMyMind: expect.stringContaining('imgflip.com')
+    });
+
+    const invalid = await request(app).post('/memes').send({ template: 'missing-template' });
+    expect(invalid.status).toBe(400);
+    expect(invalid.body).toEqual({ error: 'Either url or a known template is required.' });
+
+    const noJsonBody = await request(app).post('/memes').type('text/plain').send('raw=1');
+    expect(noJsonBody.status).toBe(400);
+    expect(noJsonBody.body).toEqual({ error: 'Either url or a known template is required.' });
+  });
+
   it('authenticates admin with configured password and unlocks admin-only avatar settings', async () => {
     const app = createServer({ random: () => 0, now: () => 1_000, adminPassword: 'letmein' });
 

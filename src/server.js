@@ -8,6 +8,7 @@ import {
   sanitizeChatMessage,
   sanitizeName
 } from './world.js';
+import { collectSystemMetrics, systemMonitorPageTemplate } from './system-monitor.js';
 
 const STALE_VIEWER_MS = 120_000;
 const MAX_CHAT_MESSAGES = 30;
@@ -374,6 +375,14 @@ export function createServer({ random = Math.random, now, adminPassword, env = p
   app.get('/world', (_req, res) => {
     const viewer = runtime.registerViewer();
     res.type('html').send(worldPageTemplate({ viewer, world: runtime.world }));
+  });
+
+  app.get('/system_monitor', (_req, res) => {
+    res.type('html').send(systemMonitorPageTemplate());
+  });
+
+  app.get('/system_monitor/metrics', (_req, res) => {
+    res.json(collectSystemMetrics());
   });
 
   app.get('/world/updates', (_req, res) => {

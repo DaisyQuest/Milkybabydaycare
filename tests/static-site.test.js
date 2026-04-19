@@ -16,6 +16,7 @@ describe('static site entrypoint files', () => {
     expect(html).toContain("import { initMilkyBabyDaycare } from './src/site.js';");
     expect(html).toContain('initMilkyBabyDaycare(document, window, new Date());');
     expect(html).toContain('<a href="/world">Visit the interactive ASCII world →</a>');
+    expect(html).toContain('<a href="/system_monitor">Open the live system monitor dashboard →</a>');
   });
 
   it('keeps legacy milkybabydaycare.html content aligned with index.html', () => {

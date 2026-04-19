@@ -13,8 +13,8 @@ const AVATAR_COLOR_PRESETS = {
   PINK: '#ec4899'
 };
 const DEFAULT_WORLD = {
-  width: 48,
-  height: 24,
+  width: 64,
+  height: 32,
   baseName: 'Starling',
   startX: 0,
   startY: 0
@@ -283,6 +283,22 @@ function intentFromKeyboard(key) {
   return map[normalized] ?? null;
 }
 
+function targetIsTextEditable(target) {
+  if (!target || typeof target !== 'object') {
+    return false;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  if (typeof target.closest !== 'function') {
+    return false;
+  }
+
+  return Boolean(target.closest('input, textarea, select, [contenteditable], [data-world-chat-input], [data-world-name], [data-world-admin-input]'));
+}
+
 function renderOnlineUsers(target, users) {
   target.textContent = '';
 
@@ -499,6 +515,14 @@ export function createWorldController({ doc, initialViewer, world }) {
   });
 
   doc.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+      return;
+    }
+
+    if (targetIsTextEditable(event.target)) {
+      return;
+    }
+
     const intent = intentFromKeyboard(event.key);
 
     if (intent) {

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Milky Baby Meme Generator</title>
+    <link rel="stylesheet" href="./src/site.css" />
+  </head>
+  <body class="meme-body">
+    <main class="meme-composition" data-meme-root>
+      <section class="meme-hero" aria-label="Milky Baby Meme Generator">
+        <p class="meme-brand">Milky Baby Meme Generator</p>
+        <h1>Turn any photo into a glorious daycare-tier meme.</h1>
+        <p class="meme-support">Upload an image, type top and bottom captions, and watch the preview update instantly.</p>
+        <p class="meme-status" data-meme-status aria-live="polite">No image selected yet. Choose a file to get started.</p>
+      </section>
+
+      <section class="meme-controls" aria-label="Meme controls">
+        <label>
+          Upload image
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-meme-file />
+        </label>
+        <div class="meme-url-controls">
+          <label>
+            Or retrieve by URL
+            <input type="url" placeholder="https://example.com/my-meme.jpg" data-meme-url />
+          </label>
+          <button type="button" data-meme-url-load>Retrieve Meme</button>
+        </div>
+        <label>
+          Top text
+          <textarea rows="2" maxlength="120" data-meme-top placeholder="WHEN IT'S NAP TIME"></textarea>
+        </label>
+        <label>
+          Bottom text
+          <textarea rows="2" maxlength="120" data-meme-bottom placeholder="BUT CRAYONS ARE CALLING"></textarea>
+        </label>
+        <label>
+          Text size
+          <input type="range" min="18" max="96" step="1" value="42" data-meme-size />
+        </label>
+        <p><a href="/">← Back to Milky Baby Daycare</a></p>
+      </section>
+
+      <section class="meme-preview-wrap" aria-label="Live meme preview">
+        <canvas data-meme-canvas aria-label="Meme preview canvas"></canvas>
+      </section>
+    </main>
+
+    <script type="module">
+      import { initMemeGenerator } from './src/meme-generator.js';
+      initMemeGenerator(document, window);
+    </script>
+  </body>
+</html>

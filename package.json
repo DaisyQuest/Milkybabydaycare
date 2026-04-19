@@ -10,7 +10,7 @@
     "start": "node server.js",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "lint": "node --check src/site.js && node --check src/world.js && node --check src/world-client.js && node --check src/server.js && node --check server.js"
+    "lint": "node --check src/site.js && node --check src/meme-generator.js && node --check src/world.js && node --check src/world-client.js && node --check src/server.js && node --check server.js"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",

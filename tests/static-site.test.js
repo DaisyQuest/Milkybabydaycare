@@ -17,6 +17,7 @@ describe('static site entrypoint files', () => {
     expect(html).toContain('initMilkyBabyDaycare(document, window, new Date());');
     expect(html).toContain('<a href="/world">Visit the interactive ASCII world →</a>');
     expect(html).toContain('<a href="/system_monitor">Open the live system monitor dashboard →</a>');
+    expect(html).toContain('<a href="/memegenerator">Create a meme with live preview →</a>');
   });
 
   it('keeps legacy milkybabydaycare.html content aligned with index.html', () => {
@@ -40,5 +41,23 @@ describe('Azure Static Web Apps fallback config', () => {
       rewrite: '/index.html',
       exclude: ['/assets/*', '/*.css', '/*.js', '/src/*']
     });
+  });
+});
+
+
+describe('meme generator entrypoint file', () => {
+  it('provides a dedicated meme generator page with uploader controls', () => {
+    const html = readProjectFile('memegenerator.html');
+
+    expect(html).toContain('<title>Milky Baby Meme Generator</title>');
+    expect(html).toContain('data-meme-root');
+    expect(html).toContain('data-meme-file');
+    expect(html).toContain('data-meme-url');
+    expect(html).toContain('data-meme-url-load');
+    expect(html).toContain('data-meme-top');
+    expect(html).toContain('data-meme-bottom');
+    expect(html).toContain('data-meme-size');
+    expect(html).toContain('data-meme-canvas');
+    expect(html).toContain("import { initMemeGenerator } from './src/meme-generator.js';");
   });
 });

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bungee&family=IBM+Plex+Mono:wght@400;700&family=Sora:wght@400;600;700;800&family=Space+Grotesk:wght@400;600;700&display=swap');
 
 :root {
   --pink: #ffb6d9;
@@ -388,5 +388,191 @@ form[data-world-chat-form] {
   .monitor-tab {
     animation: none;
     transition: none;
+  }
+}
+
+.meme-body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+  color: #12253d;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 239, 181, 0.8), transparent 35%),
+    radial-gradient(circle at 80% 16%, rgba(152, 242, 255, 0.55), transparent 32%),
+    linear-gradient(120deg, #fef9cf 0%, #ffd7cb 45%, #b6f3ff 100%);
+  padding: clamp(0.9rem, 2.5vw, 2rem);
+  display: block;
+}
+
+.meme-composition {
+  width: min(1200px, 100%);
+  min-height: calc(100vh - clamp(1.8rem, 5vw, 4rem));
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.25fr);
+  gap: clamp(1rem, 2vw, 1.6rem);
+  align-items: stretch;
+}
+
+.meme-hero,
+.meme-controls,
+.meme-preview-wrap {
+  background: color-mix(in oklab, white 80%, #ffe9b7);
+  border: 1px solid rgba(18, 37, 61, 0.15);
+  border-radius: 1.2rem;
+}
+
+.meme-hero {
+  padding: clamp(1rem, 2vw, 1.6rem);
+  animation: heroFloatIn 550ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.meme-brand {
+  margin: 0;
+  font-family: 'Bungee', 'Sora', sans-serif;
+  letter-spacing: 0.03em;
+  font-size: clamp(1.2rem, 2.3vw, 1.8rem);
+  color: #0c4d74;
+}
+
+.meme-hero h1 {
+  margin: 0.65rem 0 0;
+  font-size: clamp(1.35rem, 3.4vw, 2.5rem);
+  line-height: 1.12;
+}
+
+.meme-support {
+  margin: 0.8rem 0 0;
+  max-width: 36ch;
+}
+
+.meme-status {
+  margin: 1rem 0 0;
+  font-weight: 700;
+  color: #0c4d74;
+}
+
+.meme-controls {
+  padding: clamp(1rem, 2vw, 1.4rem);
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  animation: controlsSlideIn 650ms ease;
+}
+
+.meme-controls label {
+  display: grid;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.meme-controls textarea,
+.meme-controls input[type='range'],
+.meme-controls input[type='file'] {
+  width: 100%;
+}
+
+
+.meme-url-controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+  align-items: end;
+}
+
+.meme-url-controls input[type='url'] {
+  width: 100%;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(18, 37, 61, 0.22);
+  padding: 0.5rem 0.65rem;
+  font-family: inherit;
+}
+
+.meme-url-controls button {
+  border-radius: 0.7rem;
+  border: 0;
+  background: linear-gradient(135deg, #0c4d74, #1a7d85);
+  color: #f5fcff;
+  padding: 0.58rem 0.9rem;
+  font-weight: 700;
+}
+
+.meme-controls textarea {
+  border-radius: 0.65rem;
+  border: 1px solid rgba(18, 37, 61, 0.22);
+  padding: 0.5rem 0.65rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.meme-preview-wrap {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  overflow: hidden;
+  background: linear-gradient(160deg, #123454, #2c6783 55%, #4f8f8e);
+  box-shadow: 0 16px 36px rgba(18, 37, 61, 0.23);
+  animation: previewPulseIn 700ms ease;
+}
+
+.meme-preview-wrap canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  min-height: min(70vh, 560px);
+  object-fit: contain;
+}
+
+@keyframes heroFloatIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes controlsSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes previewPulseIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .meme-composition {
+    grid-template-columns: 1fr;
+  }
+
+  .meme-preview-wrap {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .meme-preview-wrap canvas {
+    min-height: min(58vh, 420px);
+  }
+
+  .meme-url-controls {
+    grid-template-columns: 1fr;
   }
 }

@@ -3,7 +3,7 @@ import request from 'supertest';
 import { createServer } from '../src/server.js';
 
 describe('express server', () => {
-  it('serves homepage, world, and system monitor pages with expected datastar ui', async () => {
+  it('serves homepage, world, meme generator, and system monitor pages with expected ui', async () => {
     const app = createServer({ random: () => 0, now: () => 1_000 });
 
     const home = await request(app).get('/');
@@ -15,6 +15,13 @@ describe('express server', () => {
     expect(monitor.text).toContain('System Monitor');
     expect(monitor.text).toContain('data-monitor-signals');
     expect(monitor.text).toContain('@sudodevnull/datastar');
+
+
+    const memeGenerator = await request(app).get('/memegenerator');
+    expect(memeGenerator.status).toBe(200);
+    expect(memeGenerator.text).toContain('Milky Baby Meme Generator');
+    expect(memeGenerator.text).toContain('data-meme-file');
+    expect(memeGenerator.text).toContain('data-meme-canvas');
 
     const world = await request(app).get('/world');
     expect(world.status).toBe(200);
@@ -55,6 +62,10 @@ describe('express server', () => {
     const staticScript = await request(app).get('/src/world-client.js');
     expect(staticScript.status).toBe(200);
     expect(staticScript.text).toContain('initWorld');
+
+    const memeScript = await request(app).get('/src/meme-generator.js');
+    expect(memeScript.status).toBe(200);
+    expect(memeScript.text).toContain('createMemeGeneratorApp');
   });
 
   it('authenticates admin with configured password and unlocks admin-only avatar settings', async () => {

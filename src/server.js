@@ -377,6 +377,10 @@ export function createServer({ random = Math.random, now, adminPassword, env = p
     res.type('html').send(worldPageTemplate({ viewer, world: runtime.world }));
   });
 
+  app.get('/memegenerator', (_req, res) => {
+    res.sendFile('memegenerator.html', { root: process.cwd() });
+  });
+
   app.get('/system_monitor', (_req, res) => {
     res.type('html').send(systemMonitorPageTemplate());
   });

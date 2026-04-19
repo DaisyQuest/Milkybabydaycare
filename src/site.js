@@ -119,6 +119,114 @@ export function createButtonBurst({
   return burst;
 }
 
+export function buildTypewriterMarkup(text) {
+  const value = typeof text === 'string' ? text : '';
+  return [...value].map((character, index) => ({
+    character,
+    index,
+    isSpace: character === ' '
+  }));
+}
+
+export function resolveIntroTimeline(characterCount) {
+  const safeCount = Number.isFinite(characterCount) ? Math.max(0, Math.floor(characterCount)) : 0;
+  const headlineDelayMs = 420;
+  const charDurationMs = 45;
+  const headlineDurationMs = safeCount * charDurationMs;
+  const sparkleDelayMs = headlineDelayMs + headlineDurationMs + 100;
+  const subtitleDelayMs = sparkleDelayMs + 120;
+  const buttonDelayMs = subtitleDelayMs + 220;
+  const linkDelayMs = buttonDelayMs + 480;
+  const introEndMs = linkDelayMs + 400;
+
+  return {
+    headlineDelayMs,
+    charDurationMs,
+    headlineDurationMs,
+    sparkleDelayMs,
+    subtitleDelayMs,
+    buttonDelayMs,
+    linkDelayMs,
+    introEndMs
+  };
+}
+
+export function setupIntroChoreography(doc, root, reducedMotion, scheduleSettle = setTimeout) {
+  if (!doc || !root) {
+    return null;
+  }
+
+  const headlineCopy = root.querySelector('[data-headline-copy]');
+  const sparkle = root.querySelector('[data-headline-sparkle]');
+  const subtitle = root.querySelector('[data-intro-subtitle]');
+  const buttonRow = root.querySelector('[data-intro-buttons]');
+  const linkStack = root.querySelector('[data-intro-links]');
+  const decorItems = [...root.querySelectorAll('[data-intro-decor]')];
+
+  if (reducedMotion) {
+    root.dataset.intro = 'complete';
+    return {
+      timeline: resolveIntroTimeline(0),
+      characterCount: 0
+    };
+  }
+
+  const copyText = headlineCopy?.textContent?.trim() ?? '';
+  const markup = buildTypewriterMarkup(copyText);
+  const timeline = resolveIntroTimeline(markup.length);
+  root.dataset.intro = 'playing';
+  root.style.setProperty('--headline-delay', `${timeline.headlineDelayMs}ms`);
+  root.style.setProperty('--headline-char-duration', `${timeline.charDurationMs}ms`);
+  root.style.setProperty('--headline-duration', `${timeline.headlineDurationMs}ms`);
+  root.style.setProperty('--sparkle-delay', `${timeline.sparkleDelayMs}ms`);
+  root.style.setProperty('--subtitle-delay', `${timeline.subtitleDelayMs}ms`);
+  root.style.setProperty('--button-delay', `${timeline.buttonDelayMs}ms`);
+  root.style.setProperty('--link-delay', `${timeline.linkDelayMs}ms`);
+
+  if (headlineCopy) {
+    headlineCopy.textContent = '';
+    markup.forEach(({ character, index, isSpace }) => {
+      const span = doc.createElement('span');
+      span.className = 'headline-char';
+      span.style.setProperty('--char-index', String(index));
+      span.textContent = character;
+      if (isSpace) {
+        span.dataset.space = 'true';
+      }
+      headlineCopy.appendChild(span);
+    });
+  }
+
+  if (sparkle) {
+    sparkle.style.setProperty('--sparkle-delay', `${timeline.sparkleDelayMs}ms`);
+  }
+
+  if (subtitle) {
+    subtitle.style.setProperty('--subtitle-delay', `${timeline.subtitleDelayMs}ms`);
+  }
+
+  if (buttonRow) {
+    buttonRow.style.setProperty('--button-delay', `${timeline.buttonDelayMs}ms`);
+  }
+
+  if (linkStack) {
+    linkStack.style.setProperty('--link-delay', `${timeline.linkDelayMs}ms`);
+  }
+
+  decorItems.forEach((item, index) => {
+    item.style.setProperty('--decor-index', String(index));
+  });
+
+  scheduleSettle(() => {
+    root.dataset.intro = 'complete';
+  }, timeline.introEndMs);
+
+  return {
+    timeline,
+    characterCount: markup.length
+  };
+}
+
 export function createMilkyBabyDaycareApp(doc, win = window, now = new Date()) {
   const root = doc.querySelector('[data-app-root]');
   const responseEl = doc.querySelector('[data-response]');
@@ -137,6 +245,7 @@ export function createMilkyBabyDaycareApp(doc, win = window, now = new Date()) {
 
   root.dataset.motion = state.reducedMotion ? 'reduced' : 'full';
   root.dataset.palette = state.palette;
+  setupIntroChoreography(doc, root, state.reducedMotion, win.setTimeout?.bind(win) ?? setTimeout);
 
   function render(choice) {
     state.choice = normalizeChoice(choice);

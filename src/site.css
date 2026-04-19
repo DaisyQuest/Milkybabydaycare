@@ -27,6 +27,10 @@ body {
   display: grid;
   place-items: center;
   overflow-x: hidden;
+  animation:
+    skyIntro 700ms ease-out forwards,
+    skyDrift 16s ease-in-out infinite alternate,
+    hueDrift 8s linear infinite;
 }
 
 .container {
@@ -83,6 +87,18 @@ h1 {
   margin-bottom: 0.25rem;
 }
 
+[data-headline-copy] {
+  white-space: pre-wrap;
+}
+
+[data-headline-copy] .headline-char {
+  display: inline-block;
+}
+
+[data-headline-sparkle] {
+  display: inline-block;
+}
+
 .subtitle {
   font-size: 1.2rem;
   margin: 0;
@@ -100,6 +116,58 @@ h1 {
   font-size: clamp(1.2rem, 3vw, 1.8rem);
   opacity: 0.55;
   animation: floaty 7s ease-in-out infinite;
+}
+
+[data-intro='playing'] .floating-decor span {
+  opacity: 0;
+  transform: translateY(-45px) scale(0.92);
+  animation:
+    decorDrop 680ms cubic-bezier(0.2, 1.2, 0.4, 1) forwards,
+    floaty 7s ease-in-out infinite 900ms;
+  animation-delay:
+    calc(var(--decor-index, 0) * 80ms),
+    calc(900ms + var(--decor-index, 0) * 80ms);
+}
+
+[data-intro='playing'] [data-headline-copy] .headline-char {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: typeReveal 20ms linear forwards;
+  animation-delay: calc(var(--headline-delay, 420ms) + (var(--char-index, 0) * var(--headline-char-duration, 45ms)));
+}
+
+[data-intro='playing'] [data-headline-sparkle] {
+  opacity: 0;
+  transform: scale(0.4);
+  animation:
+    sparklePop 420ms cubic-bezier(0.2, 1.35, 0.4, 1) forwards var(--sparkle-delay, 1200ms),
+    sparkleRays 800ms ease-out forwards var(--sparkle-delay, 1200ms);
+}
+
+[data-intro='playing'] [data-intro-subtitle] {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: subtitleIn 420ms ease-out forwards var(--subtitle-delay, 1400ms);
+}
+
+[data-intro='playing'] [data-intro-buttons] button {
+  opacity: 0;
+  transform: scale(0);
+  animation: buttonPop 560ms cubic-bezier(0.18, 1.45, 0.25, 1) forwards;
+}
+
+[data-intro='playing'] [data-intro-buttons] button:nth-child(1) {
+  animation-delay: var(--button-delay, 1600ms);
+}
+
+[data-intro='playing'] [data-intro-buttons] button:nth-child(2) {
+  animation-delay: calc(var(--button-delay, 1600ms) + 120ms);
+}
+
+[data-intro='playing'] [data-intro-links] {
+  opacity: 0;
+  clip-path: inset(0 100% 0 0);
+  animation: linksWipe 500ms ease-out forwards var(--link-delay, 1950ms);
 }
 
 .floating-decor span:nth-child(1) {
@@ -255,6 +323,104 @@ button[aria-pressed='true'] {
   }
   100% {
     background-position: 100% 100%;
+  }
+}
+
+@keyframes hueDrift {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(24deg);
+  }
+}
+
+@keyframes skyIntro {
+  0% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes decorDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-45px) scale(0.92);
+  }
+  72% {
+    opacity: 0.62;
+    transform: translateY(8px) scale(1.02);
+  }
+  100% {
+    opacity: 0.55;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes typeReveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sparklePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sparkleRays {
+  0% {
+    text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+  50% {
+    text-shadow:
+      0 0 10px rgba(255, 255, 255, 0.8),
+      0 0 18px rgba(255, 240, 170, 0.75);
+  }
+  100% {
+    text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+@keyframes subtitleIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes buttonPop {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  68% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes linksWipe {
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
   }
 }
 

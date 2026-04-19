@@ -173,14 +173,14 @@ export async function retrieveMemeByUrl(
     throw new Error('The URL did not return a supported image type.');
   }
 
-  return loadImageFromFile(
-    { ...blob, type: mimeType },
-    {
-      createObjectURL,
-      revokeObjectURL,
-      ImageCtor
-    }
-  );
+  const safeBlob =
+    blob instanceof Blob && blob.type === mimeType ? blob : new Blob([blob], { type: mimeType });
+
+  return loadImageFromFile(safeBlob, {
+    createObjectURL,
+    revokeObjectURL,
+    ImageCtor
+  });
 }
 
 export function createMemeGeneratorApp(doc, win = window) {

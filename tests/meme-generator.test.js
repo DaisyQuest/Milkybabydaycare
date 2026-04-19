@@ -224,10 +224,14 @@ describe('retrieveMemeByUrl', () => {
   it('loads remote image when fetch and blob are valid', async () => {
     const createObjectURL = vi.fn(() => 'blob:remote');
     const revokeObjectURL = vi.fn();
+    let inputToObjectUrl = null;
 
     const image = await retrieveMemeByUrl('https://example.com/meme.png', {
       fetchImpl: async () => goodResponse,
-      createObjectURL,
+      createObjectURL: (value) => {
+        inputToObjectUrl = value;
+        return createObjectURL(value);
+      },
       revokeObjectURL,
       ImageCtor: SuccessImage
     });
@@ -235,6 +239,8 @@ describe('retrieveMemeByUrl', () => {
     expect(image).toBeInstanceOf(SuccessImage);
     expect(createObjectURL).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:remote');
+    expect(inputToObjectUrl).toBeInstanceOf(Blob);
+    expect(inputToObjectUrl.type).toBe('image/png');
   });
 
 
@@ -263,14 +269,38 @@ describe('retrieveMemeByUrl', () => {
   });
 
   it('uses png fallback mime type when blob type is missing', async () => {
+    let inputToObjectUrl = null;
+
     const image = await retrieveMemeByUrl('https://example.com/fallback', {
       fetchImpl: async () => ({ ok: true, blob: async () => ({}) }),
-      createObjectURL: () => 'blob:remote2',
+      createObjectURL: (value) => {
+        inputToObjectUrl = value;
+        return 'blob:remote2';
+      },
       revokeObjectURL: () => {},
       ImageCtor: SuccessImage
     });
 
     expect(image).toBeInstanceOf(SuccessImage);
+    expect(inputToObjectUrl).toBeInstanceOf(Blob);
+    expect(inputToObjectUrl.type).toBe('image/png');
+  });
+
+  it('preserves blob identity when type is already valid', async () => {
+    const existingBlob = new Blob(['abc'], { type: 'image/webp' });
+    let inputToObjectUrl = null;
+
+    await retrieveMemeByUrl('https://example.com/existing', {
+      fetchImpl: async () => ({ ok: true, blob: async () => existingBlob }),
+      createObjectURL: (value) => {
+        inputToObjectUrl = value;
+        return 'blob:existing';
+      },
+      revokeObjectURL: () => {},
+      ImageCtor: SuccessImage
+    });
+
+    expect(inputToObjectUrl).toBe(existingBlob);
   });
 });
 

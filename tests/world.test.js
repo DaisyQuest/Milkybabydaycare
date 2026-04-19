@@ -382,6 +382,24 @@ describe('createWorldController and initWorld', () => {
     expect(status.textContent).toContain('[0, 0]');
     fireEvent.keyDown(document, { key: 'q' });
     expect(status.textContent).toContain('[0, 0]');
+    fireEvent.keyDown(chatInput, { key: 'd' });
+    expect(status.textContent).toContain('[0, 0]');
+
+    const contentEditable = document.createElement('div');
+    Object.defineProperty(contentEditable, 'isContentEditable', {
+      configurable: true,
+      get() {
+        return true;
+      }
+    });
+    document.body.append(contentEditable);
+    const editableKeyEvent = new KeyboardEvent('keydown', { key: 's', bubbles: true, cancelable: true });
+    contentEditable.dispatchEvent(editableKeyEvent);
+    expect(editableKeyEvent.defaultPrevented).toBe(false);
+    expect(status.textContent).toContain('[0, 0]');
+
+    fireEvent.keyDown(document, { key: 'd', ctrlKey: true });
+    expect(status.textContent).toContain('[0, 0]');
 
     fireEvent.input(nameInput, { target: { value: '  Aurora  ' } });
     expect(status.textContent).toContain('Aurora (&)');

@@ -15,7 +15,7 @@ describe('express server', () => {
     expect(world.text).toContain('Milky Baby Daycare World');
     expect(world.text).toContain('data-world-bootstrap');
     expect(world.text).toContain('"character":"!"');
-    expect(world.text).toContain('"width":48');
+    expect(world.text).toContain('"width":64');
     expect(world.text).toContain('data-world-updates-url="/world/updates"');
     expect(world.text).toContain('data-world-admin-auth-url="/world/admin-auth"');
     expect(world.text).toContain('data-world-admin-form');
@@ -33,8 +33,8 @@ describe('express server', () => {
     expect(updates.body.percentage).toBe(100);
     expect(updates.body.users).toEqual([]);
     expect(updates.body.messages).toEqual([]);
-    expect(updates.body.contents.split('\n')).toHaveLength(24);
-    expect(updates.body.contents.split('\n').every((row) => row === '.'.repeat(48))).toBe(true);
+    expect(updates.body.contents.split('\n')).toHaveLength(32);
+    expect(updates.body.contents.split('\n').every((row) => row === '.'.repeat(64))).toBe(true);
 
     const staticScript = await request(app).get('/src/world-client.js');
     expect(staticScript.status).toBe(200);
@@ -69,7 +69,7 @@ describe('express server', () => {
         x: 1,
         y: 2
       },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map'
     });
 
@@ -137,7 +137,7 @@ describe('express server', () => {
 
     const firstSync = await request(app).post('/world/updates').send({
       viewer: { id: 'v1', name: 'Comet', character: 'C', x: 1, y: 2 },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map',
       chatMessage: 'Hello world'
     });
@@ -167,7 +167,7 @@ describe('express server', () => {
 
     const secondSync = await request(app).post('/world/updates').send({
       viewer: { id: 'v2', name: 'Nova', character: 'N', x: 3, y: 2 },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map'
     });
 
@@ -189,7 +189,7 @@ describe('express server', () => {
         x: 4,
         y: 1
       },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map'
     });
 
@@ -217,7 +217,7 @@ describe('express server', () => {
         x: 2,
         y: 3
       },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map'
     });
 
@@ -231,7 +231,7 @@ describe('express server', () => {
 
     await request(app).post('/world/updates').send({
       viewer: { id: 'existing', name: 'Existing', character: 'E', x: 1, y: 1 },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map'
     });
 
@@ -240,7 +240,7 @@ describe('express server', () => {
 
     const followup = await request(app).post('/world/updates').send({
       viewer: { id: 'existing', name: 'Existing', character: 'E', avatar: { colorKey: 'FREE', freeColor: '#112233' }, x: 1, y: 1 },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map'
     });
 
@@ -263,7 +263,7 @@ describe('express server', () => {
 
     const invalidViewer = await request(app).post('/world/updates').send({
       viewer: { id: '   ' },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map'
     });
 
@@ -285,7 +285,7 @@ describe('express server', () => {
       const id = index === 0 ? 'stale' : 'active';
       await request(app).post('/world/updates').send({
         viewer: { id, name: `User-${index}`, character: '#', x: 0, y: 0 },
-        world: { width: 48, height: 24 },
+        world: { width: 64, height: 32 },
         contents: 'map',
         chatMessage: `msg-${index}`
       });
@@ -295,7 +295,7 @@ describe('express server', () => {
 
     const snapshot = await request(app).post('/world/updates').send({
       viewer: { id: 'active', name: 'Active', character: '#', x: 0, y: 0 },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map'
     });
 
@@ -317,7 +317,7 @@ describe('express server', () => {
         x: -100,
         y: 1000
       },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map',
       chatMessage: ' '.repeat(20)
     });
@@ -340,7 +340,7 @@ describe('express server', () => {
         },
         isAdmin: false,
         x: 0,
-        y: 23
+        y: 31
       }
     ]);
     expect(response.body.messages).toEqual([]);
@@ -359,7 +359,7 @@ describe('express server', () => {
         x: Number.NaN,
         y: Number.POSITIVE_INFINITY
       },
-      world: { width: 48, height: 24 },
+      world: { width: 64, height: 32 },
       contents: 'map'
     });
 

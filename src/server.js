@@ -9,6 +9,7 @@ import {
   sanitizeName
 } from './world.js';
 import { collectSystemMetrics, systemMonitorPageTemplate } from './system-monitor.js';
+import { createMemeService } from './meme-service.js';
 
 const STALE_VIEWER_MS = 120_000;
 const MAX_CHAT_MESSAGES = 30;
@@ -162,6 +163,65 @@ function renderWorldFromViewers(world, viewers) {
   });
 
   return grid.map((row) => row.join('')).join('\n');
+}
+
+
+
+function memePageTemplate(meme) {
+  const payload = JSON.stringify(meme.config);
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Milky Baby Meme</title>
+    <link rel="stylesheet" href="/src/site.css" />
+  </head>
+  <body class="meme-body">
+    <main class="meme-composition">
+      <section class="meme-hero">
+        <p class="meme-brand">Milky Baby Meme</p>
+        <h1>Your meme is live for 48 hours.</h1>
+        <p class="meme-support">Share this URL before it expires at ${new Date(meme.expiresAt).toISOString()}.</p>
+      </section>
+      <section class="meme-preview-wrap">
+        <canvas data-meme-view aria-label="Rendered meme"></canvas>
+      </section>
+    </main>
+    <script type="module">
+      import { drawMemePreview } from '/src/meme-generator.js';
+
+      const meme = ${payload};
+      const canvas = document.querySelector('[data-meme-view]');
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => {
+        drawMemePreview({
+          canvas,
+          image,
+          topText: meme.topText,
+          bottomText: meme.bottomText,
+          fontSize: meme.fontSize,
+          fillColor: meme.textColor,
+          strokeColor: meme.strokeColor
+        });
+      };
+      image.onerror = () => {
+        drawMemePreview({
+          canvas,
+          image: null,
+          topText: meme.topText,
+          bottomText: meme.bottomText,
+          fontSize: meme.fontSize,
+          fillColor: meme.textColor,
+          strokeColor: meme.strokeColor
+        });
+      };
+      image.src = meme.imageUrl;
+    </script>
+  </body>
+</html>`;
 }
 
 function resolveAdminPassword(env = process.env) {
@@ -359,6 +419,7 @@ function createWorldRuntime({ random, now, adminPassword }) {
 
 export function createServer({ random = Math.random, now, adminPassword, env = process.env } = {}) {
   const app = express();
+  const memeService = createMemeService({ now: typeof now === 'function' ? now : Date.now });
   const runtime = createWorldRuntime({
     random,
     now: typeof now === 'function' ? now : Date.now,
@@ -383,6 +444,36 @@ export function createServer({ random = Math.random, now, adminPassword, env = p
 
   app.get('/system_monitor', (_req, res) => {
     res.type('html').send(systemMonitorPageTemplate());
+  });
+
+  app.get('/memes/templates', (_req, res) => {
+    res.json({ templates: memeService.templates });
+  });
+
+  app.post('/memes', (req, res) => {
+    const body = req.body ?? {};
+    const providedPassword = typeof body.adminPassword === 'string' ? body.adminPassword : '';
+    const expectedPassword = typeof adminPassword === 'string' ? adminPassword : resolveAdminPassword(env);
+    const allowSlug = safePasswordMatch(providedPassword, expectedPassword);
+    const created = memeService.createMeme(body, { allowSlug });
+
+    if (!created.ok) {
+      res.status(created.status).json({ error: created.error });
+      return;
+    }
+
+    res.status(created.status).json(created.meme);
+  });
+
+  app.get('/memes/:identifier', (req, res) => {
+    const meme = memeService.getMeme(req.params.identifier);
+
+    if (!meme) {
+      res.status(404).json({ error: 'Meme not found or expired.' });
+      return;
+    }
+
+    res.type('html').send(memePageTemplate(meme));
   });
 
   app.get('/system_monitor/metrics', (_req, res) => {

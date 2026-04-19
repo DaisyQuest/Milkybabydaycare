@@ -12,7 +12,10 @@ describe('static site entrypoint files', () => {
     const html = readProjectFile('index.html');
 
     expect(html).toContain('<title>Milky Baby Daycare</title>');
-    expect(html).toContain('<main class="container" data-app-root>');
+    expect(html).toContain('<main class="page-shell" data-app-root>');
+    expect(html).toContain('<section class="experience-grid">');
+    expect(html).toContain('<section class="action-panel">');
+    expect(html).toContain('<section class="link-panel link-stack" data-intro-links>');
     expect(html).toContain('<section class="floating-decor" aria-hidden="true">');
     expect(html).toContain('<section data-burst-layer aria-hidden="true"></section>');
     expect(html).toContain("import { initMilkyBabyDaycare } from './src/site.js';");
@@ -46,6 +49,20 @@ describe('Azure Static Web Apps fallback config', () => {
   });
 });
 
+
+
+describe('site stylesheet layout contract', () => {
+  it('uses full viewport layout rather than centered container', () => {
+    const css = readProjectFile('src/site.css');
+
+    expect(css).toContain('.page-shell {');
+    expect(css).toContain('width: 100%;');
+    expect(css).toContain('min-height: 100vh;');
+    expect(css).toContain('.experience-grid {');
+    expect(css).toContain('grid-template-columns: minmax(300px, 1.4fr) minmax(260px, 1fr);');
+    expect(css).not.toContain('place-items: center;');
+  });
+});
 
 describe('meme generator entrypoint file', () => {
   it('provides a dedicated meme generator page with uploader controls', () => {

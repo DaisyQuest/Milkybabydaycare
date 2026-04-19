@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="./src/site.css" />
   </head>
   <body>
-    <main class="container" data-app-root>
+    <main class="page-shell" data-app-root>
       <section class="floating-decor" aria-hidden="true">
         <span data-intro-decor>☁️</span>
         <span data-intro-decor>✨</span>
@@ -16,6 +16,7 @@
         <span data-intro-decor>🫧</span>
         <span data-intro-decor>💖</span>
       </section>
+
       <section class="hero-content">
         <h1 data-headline>
           <span data-headline-copy>Welcome to the Milky Baby Daycare</span>
@@ -23,20 +24,27 @@
         </h1>
         <p class="subtitle" data-intro-subtitle>Are you picking up or dropping off?</p>
       </section>
-      <section class="button-row" data-intro-buttons aria-label="Main actions">
-        <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
-        <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
+
+      <section class="experience-grid">
+        <section class="action-panel">
+          <section class="button-row" data-intro-buttons aria-label="Main actions">
+            <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
+            <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
+          </section>
+          <section class="response" data-response data-choice="none" data-visible="false" aria-live="polite">
+            Choose an option to unlock maximum cuteness.
+          </section>
+        </section>
+
+        <section class="link-panel link-stack" data-intro-links>
+          <p><a href="/world">Visit the interactive ASCII world →</a></p>
+          <p><a href="/system_monitor">Open the live system monitor dashboard →</a></p>
+          <p><a href="/memegenerator">Create a meme with live preview →</a></p>
+          <p><small>Joke website: 100% cute vibes, 0% serious daycare logistics.</small></p>
+        </section>
       </section>
-      <section class="response" data-response data-choice="none" data-visible="false" aria-live="polite">
-        Choose an option to unlock maximum cuteness.
-      </section>
+
       <section data-burst-layer aria-hidden="true"></section>
-      <section class="link-stack" data-intro-links>
-        <p><a href="/world">Visit the interactive ASCII world →</a></p>
-        <p><a href="/system_monitor">Open the live system monitor dashboard →</a></p>
-        <p><a href="/memegenerator">Create a meme with live preview →</a></p>
-        <p><small>Joke website: 100% cute vibes, 0% serious daycare logistics.</small></p>
-      </section>
     </main>
 
     <script type="module">

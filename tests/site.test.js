@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, getByRole, getByText } from '@testing-library/dom';
 import {
+  createButtonBurst,
   createMilkyBabyDaycareApp,
   initMilkyBabyDaycare,
   isReducedMotion,
   normalizeChoice,
+  particleEmojiForChoice,
   reactionForChoice,
   resolvePaletteByHour
 } from '../src/site.js';
@@ -12,6 +14,7 @@ import {
 function buildDom() {
   document.body.innerHTML = `
     <main data-app-root>
+      <section data-burst-layer></section>
       <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
       <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
       <section data-response data-choice="none" data-visible="false"></section>
@@ -85,6 +88,68 @@ describe('reactionForChoice', () => {
   });
 });
 
+describe('particleEmojiForChoice', () => {
+  it('returns a deterministic particle emoji by choice and rng', () => {
+    expect(particleEmojiForChoice('pickup', () => 0)).toBe('✨');
+    expect(particleEmojiForChoice('dropoff', () => 0)).toBe('☁️');
+  });
+
+  it('falls back to generic pool and sparkle default for edge pools', () => {
+    expect(particleEmojiForChoice('invalid', () => 0)).toBe('✨');
+    expect(particleEmojiForChoice('pickup', () => 0, { pickup: [], dropoff: [], generic: [] })).toBe('✨');
+    expect(particleEmojiForChoice('pickup', () => 1, { pickup: ['💖'], dropoff: ['⭐'], generic: ['✨'] })).toBe('💖');
+    expect(particleEmojiForChoice('pickup', () => 0.6, { pickup: new Array(2), dropoff: ['⭐'], generic: ['✨'] })).toBe('✨');
+  });
+});
+
+describe('createButtonBurst', () => {
+  it('returns null when required args are missing', () => {
+    expect(createButtonBurst({})).toBeNull();
+  });
+
+  it('creates a burst with particles and removes it after timeout', () => {
+    document.body.innerHTML = '<main data-app-root><section data-burst-layer></section></main>';
+    const root = document.querySelector('[data-app-root]');
+    const layer = document.querySelector('[data-burst-layer]');
+    const scheduleRemoval = vi.fn((cb) => cb());
+
+    const burst = createButtonBurst({
+      doc: document,
+      target: root,
+      layer,
+      choice: 'pickup',
+      x: 20,
+      y: 30,
+      particleCount: 3,
+      rng: () => 0,
+      scheduleRemoval
+    });
+
+    expect(burst).toBeTruthy();
+    expect(scheduleRemoval).toHaveBeenCalledTimes(1);
+    expect(layer.querySelector('.click-burst')).toBeNull();
+  });
+
+  it('defaults burst layer to target and uses generic choice for invalid type', () => {
+    document.body.innerHTML = '<main data-app-root></main>';
+    const root = document.querySelector('[data-app-root]');
+
+    const burst = createButtonBurst({
+      doc: document,
+      target: root,
+      choice: 'unknown',
+      x: 40,
+      y: 50,
+      particleCount: 1,
+      removeAfterMs: 0,
+      scheduleRemoval: () => {}
+    });
+
+    expect(root.querySelector('.click-burst')).toBe(burst);
+    expect(burst.dataset.choice).toBe('generic');
+  });
+});
+
 describe('createMilkyBabyDaycareApp', () => {
   it('throws when required DOM elements are missing', () => {
     document.body.innerHTML = '<main></main>';
@@ -120,13 +185,13 @@ describe('createMilkyBabyDaycareApp', () => {
     const dropoffButton = getByRole(document.body, 'button', { name: 'I’m Dropping Off' });
     const response = document.querySelector('[data-response]');
 
-    fireEvent.click(pickupButton);
+    fireEvent.click(pickupButton, { clientX: 12, clientY: 24 });
     expect(response.dataset.choice).toBe('pickup');
     expect(response.dataset.visible).toBe('true');
     expect(pickupButton.getAttribute('aria-pressed')).toBe('true');
     expect(dropoffButton.getAttribute('aria-pressed')).toBe('false');
 
-    fireEvent.click(dropoffButton);
+    fireEvent.click(dropoffButton, { clientX: 18, clientY: 36 });
     expect(response.dataset.choice).toBe('dropoff');
     expect(pickupButton.getAttribute('aria-pressed')).toBe('false');
     expect(dropoffButton.getAttribute('aria-pressed')).toBe('true');
@@ -141,6 +206,45 @@ describe('createMilkyBabyDaycareApp', () => {
     expect(getByText(document.body, /Pick pickup or dropoff/)).toBeTruthy();
     const response = document.querySelector('[data-response]');
     expect(response.dataset.choice).toBe('none');
+  });
+
+  it('skips visual burst effects when reduced motion is enabled', () => {
+    buildDom();
+    createMilkyBabyDaycareApp(document, { matchMedia: () => ({ matches: true }) }, new Date('2026-01-01T08:00:00Z'));
+
+    const pickupButton = getByRole(document.body, 'button', { name: 'I’m Picking Up' });
+    fireEvent.click(pickupButton, { clientX: 10, clientY: 20 });
+
+    expect(document.querySelector('.click-burst')).toBeNull();
+  });
+
+  it('falls back to button center when click coordinates are unavailable', () => {
+    buildDom();
+    const setTimeoutSpy = vi.fn((cb) => cb());
+    const appWin = {
+      matchMedia: () => ({ matches: false }),
+      setTimeout: setTimeoutSpy
+    };
+    createMilkyBabyDaycareApp(document, appWin, new Date('2026-01-01T08:00:00Z'));
+
+    const pickupButton = getByRole(document.body, 'button', { name: 'I’m Picking Up' });
+    pickupButton.dispatchEvent(new Event('click'));
+
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses global timeout fallback and mixed coordinate fallback branches', () => {
+    vi.useFakeTimers();
+    buildDom();
+    createMilkyBabyDaycareApp(document, { matchMedia: () => ({ matches: false }) }, new Date('2026-01-01T08:00:00Z'));
+
+    const pickupButton = getByRole(document.body, 'button', { name: 'I’m Picking Up' });
+    fireEvent.click(pickupButton, { clientX: 33 });
+
+    expect(document.querySelector('.click-burst')).toBeTruthy();
+    vi.runAllTimers();
+    expect(document.querySelector('.click-burst')).toBeNull();
+    vi.useRealTimers();
   });
 });
 

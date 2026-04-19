@@ -3,12 +3,18 @@ import request from 'supertest';
 import { createServer } from '../src/server.js';
 
 describe('express server', () => {
-  it('serves homepage and world pages with multiplayer ui sections and avatar controls', async () => {
+  it('serves homepage, world, and system monitor pages with expected datastar ui', async () => {
     const app = createServer({ random: () => 0, now: () => 1_000 });
 
     const home = await request(app).get('/');
     expect(home.status).toBe(200);
     expect(home.text).toContain('Milky Baby Daycare');
+
+    const monitor = await request(app).get('/system_monitor');
+    expect(monitor.status).toBe(200);
+    expect(monitor.text).toContain('System Monitor');
+    expect(monitor.text).toContain('data-monitor-signals');
+    expect(monitor.text).toContain('@sudodevnull/datastar');
 
     const world = await request(app).get('/world');
     expect(world.status).toBe(200);
@@ -35,6 +41,16 @@ describe('express server', () => {
     expect(updates.body.messages).toEqual([]);
     expect(updates.body.contents.split('\n')).toHaveLength(32);
     expect(updates.body.contents.split('\n').every((row) => row === '.'.repeat(64))).toBe(true);
+
+    const metrics = await request(app).get('/system_monitor/metrics');
+    expect(metrics.status).toBe(200);
+    expect(metrics.body).toMatchObject({
+      runtime: expect.any(Object),
+      host: expect.any(Object),
+      cpu: expect.any(Object),
+      memory: expect.any(Object),
+      processResources: expect.any(Object)
+    });
 
     const staticScript = await request(app).get('/src/world-client.js');
     expect(staticScript.status).toBe(200);

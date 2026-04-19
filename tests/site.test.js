@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, getByRole, getByText } from '@testing-library/dom';
 import {
+  buildTypewriterMarkup,
   createButtonBurst,
   createMilkyBabyDaycareApp,
   initMilkyBabyDaycare,
@@ -8,16 +9,32 @@ import {
   normalizeChoice,
   particleEmojiForChoice,
   reactionForChoice,
-  resolvePaletteByHour
+  resolveIntroTimeline,
+  resolvePaletteByHour,
+  setupIntroChoreography
 } from '../src/site.js';
 
 function buildDom() {
   document.body.innerHTML = `
     <main data-app-root>
-      <section data-burst-layer></section>
-      <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
-      <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
+      <section class="floating-decor">
+        <span data-intro-decor>☁️</span>
+        <span data-intro-decor>✨</span>
+      </section>
+      <section class="hero-content">
+        <h1 data-headline>
+          <span data-headline-copy>Welcome to the Milky Baby Daycare</span>
+          <span data-headline-sparkle>✨</span>
+        </h1>
+        <p class="subtitle" data-intro-subtitle>Are you picking up or dropping off?</p>
+      </section>
+      <section class="button-row" data-intro-buttons>
+        <button type="button" data-choice="pickup" aria-pressed="false">I’m Picking Up</button>
+        <button type="button" data-choice="dropoff" aria-pressed="false">I’m Dropping Off</button>
+      </section>
       <section data-response data-choice="none" data-visible="false"></section>
+      <section class="link-stack" data-intro-links><p>Link</p></section>
+      <section data-burst-layer></section>
     </main>
   `;
 }
@@ -59,6 +76,82 @@ describe('resolvePaletteByHour', () => {
 
   it('resolves night palette', () => {
     expect(resolvePaletteByHour(2)).toBe('night');
+  });
+});
+
+describe('buildTypewriterMarkup', () => {
+  it('builds character metadata and tracks spaces', () => {
+    expect(buildTypewriterMarkup('A B')).toEqual([
+      { character: 'A', index: 0, isSpace: false },
+      { character: ' ', index: 1, isSpace: true },
+      { character: 'B', index: 2, isSpace: false }
+    ]);
+  });
+
+  it('returns empty markup for non-strings', () => {
+    expect(buildTypewriterMarkup(undefined)).toEqual([]);
+  });
+});
+
+describe('resolveIntroTimeline', () => {
+  it('derives deterministic delay sequencing from character count', () => {
+    expect(resolveIntroTimeline(3)).toEqual({
+      headlineDelayMs: 420,
+      charDurationMs: 45,
+      headlineDurationMs: 135,
+      sparkleDelayMs: 655,
+      subtitleDelayMs: 775,
+      buttonDelayMs: 995,
+      linkDelayMs: 1475,
+      introEndMs: 1875
+    });
+  });
+
+  it('normalizes invalid character counts to zero', () => {
+    expect(resolveIntroTimeline(Number.NaN).headlineDurationMs).toBe(0);
+    expect(resolveIntroTimeline(-2).headlineDurationMs).toBe(0);
+  });
+});
+
+describe('setupIntroChoreography', () => {
+  it('returns null when root or document is missing', () => {
+    expect(setupIntroChoreography(undefined, undefined, false)).toBeNull();
+  });
+
+  it('marks intro complete immediately in reduced-motion mode', () => {
+    buildDom();
+    const root = document.querySelector('[data-app-root]');
+    const result = setupIntroChoreography(document, root, true);
+
+    expect(root.dataset.intro).toBe('complete');
+    expect(result.characterCount).toBe(0);
+  });
+
+  it('writes typewriter spans, sets delays, and settles intro state', () => {
+    buildDom();
+    const root = document.querySelector('[data-app-root]');
+    const scheduleSettle = vi.fn((cb) => cb());
+    const result = setupIntroChoreography(document, root, false, scheduleSettle);
+
+    expect(root.dataset.intro).toBe('complete');
+    expect(result.characterCount).toBeGreaterThan(0);
+    expect(scheduleSettle).toHaveBeenCalledTimes(1);
+    expect(document.querySelectorAll('[data-headline-copy] .headline-char').length).toBe(result.characterCount);
+    expect(document.querySelector('[data-headline-copy] [data-space="true"]')).toBeTruthy();
+    expect(root.style.getPropertyValue('--button-delay')).toContain('ms');
+    expect(document.querySelector('[data-intro-decor]').style.getPropertyValue('--decor-index')).toBe('0');
+  });
+
+  it('handles missing optional intro nodes without throwing', () => {
+    document.body.innerHTML = '<main data-app-root></main>';
+    const root = document.querySelector('[data-app-root]');
+    const scheduleSettle = vi.fn((cb) => cb());
+
+    const result = setupIntroChoreography(document, root, false, scheduleSettle);
+
+    expect(result.characterCount).toBe(0);
+    expect(root.dataset.intro).toBe('complete');
+    expect(scheduleSettle).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -148,6 +241,26 @@ describe('createButtonBurst', () => {
     expect(root.querySelector('.click-burst')).toBe(burst);
     expect(burst.dataset.choice).toBe('generic');
   });
+
+  it('uses default remove-after duration when not provided', () => {
+    document.body.innerHTML = '<main data-app-root><section data-burst-layer></section></main>';
+    const root = document.querySelector('[data-app-root]');
+    const layer = document.querySelector('[data-burst-layer]');
+    const scheduleRemoval = vi.fn();
+    createButtonBurst({
+      doc: document,
+      target: root,
+      layer,
+      choice: 'pickup',
+      x: 10,
+      y: 12,
+      particleCount: 1,
+      rng: () => 0,
+      scheduleRemoval
+    });
+
+    expect(scheduleRemoval).toHaveBeenCalledWith(expect.any(Function), 900);
+  });
 });
 
 describe('createMilkyBabyDaycareApp', () => {
@@ -230,7 +343,7 @@ describe('createMilkyBabyDaycareApp', () => {
     const pickupButton = getByRole(document.body, 'button', { name: 'I’m Picking Up' });
     pickupButton.dispatchEvent(new Event('click'));
 
-    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(2);
   });
 
   it('uses global timeout fallback and mixed coordinate fallback branches', () => {

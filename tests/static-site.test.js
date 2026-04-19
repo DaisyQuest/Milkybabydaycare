@@ -13,6 +13,8 @@ describe('static site entrypoint files', () => {
 
     expect(html).toContain('<title>Milky Baby Daycare</title>');
     expect(html).toContain('<main class="container" data-app-root>');
+    expect(html).toContain('<section class="floating-decor" aria-hidden="true">');
+    expect(html).toContain('<section data-burst-layer aria-hidden="true"></section>');
     expect(html).toContain("import { initMilkyBabyDaycare } from './src/site.js';");
     expect(html).toContain('initMilkyBabyDaycare(document, window, new Date());');
     expect(html).toContain('<a href="/world">Visit the interactive ASCII world →</a>');

@@ -10,14 +10,20 @@
     <main class="meme-composition" data-meme-root>
       <section class="meme-hero" aria-label="Milky Baby Meme Generator">
         <p class="meme-brand">Milky Baby Meme Generator</p>
-        <h1>Turn any photo into a glorious daycare-tier meme.</h1>
-        <p class="meme-support">Upload an image, type top and bottom captions, and watch the preview update instantly.</p>
+        <h1>Turn any photo into a glorious daycare-tier meme comic strip.</h1>
+        <p class="meme-support">Upload per-panel images, dial in crop + border styles, stack rows, and layer filters with live preview.</p>
         <p class="meme-status" data-meme-status aria-live="polite">No image selected yet. Choose a file to get started.</p>
       </section>
 
       <section class="meme-controls" aria-label="Meme controls">
+        <div class="meme-panel-header">
+          <h2>Panels</h2>
+          <button type="button" data-meme-add-panel>Add Row For New Panel</button>
+        </div>
+        <div class="meme-panel-rows" data-meme-panel-rows></div>
+
         <label>
-          Upload image
+          Upload image for active panel
           <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-meme-file />
         </label>
         <div class="meme-url-controls">
@@ -27,14 +33,54 @@
           </label>
           <button type="button" data-meme-url-load>Retrieve Meme</button>
         </div>
+
         <label>
-          Top text
+          Top text (active panel)
           <textarea rows="2" maxlength="120" data-meme-top placeholder="WHEN IT'S NAP TIME"></textarea>
         </label>
         <label>
-          Bottom text
+          Bottom text (active panel)
           <textarea rows="2" maxlength="120" data-meme-bottom placeholder="BUT CRAYONS ARE CALLING"></textarea>
         </label>
+
+        <fieldset class="meme-crop-grid">
+          <legend>Crop (%)</legend>
+          <label>X <input type="number" min="0" max="100" step="1" value="0" data-meme-crop-x /></label>
+          <label>Y <input type="number" min="0" max="100" step="1" value="0" data-meme-crop-y /></label>
+          <label>Width <input type="number" min="1" max="100" step="1" value="100" data-meme-crop-width /></label>
+          <label>Height <input type="number" min="1" max="100" step="1" value="100" data-meme-crop-height /></label>
+        </fieldset>
+
+        <fieldset class="meme-border-grid">
+          <legend>Border</legend>
+          <label>
+            Mode
+            <select data-meme-border-mode>
+              <option value="solid">Color</option>
+              <option value="two-color">Two-color mode</option>
+              <option value="rainbow">Rainbow</option>
+            </select>
+          </label>
+          <label>Primary color <input type="color" value="#ffffff" data-meme-border-color /></label>
+          <label>Secondary color <input type="color" value="#0f172a" data-meme-border-color-second /></label>
+          <label>segmentcolor1lengthpx <input type="number" min="1" max="300" value="24" data-meme-border-segment1 /></label>
+          <label>segmentcolor2lengthpx <input type="number" min="1" max="300" value="24" data-meme-border-segment2 /></label>
+          <label>stroke-width <input type="range" min="0" max="36" step="1" value="6" data-meme-border-stroke /></label>
+          <label class="meme-inline-toggle"><input type="checkbox" data-meme-border-shadow /> shadow</label>
+        </fieldset>
+
+        <fieldset class="meme-filter-grid">
+          <legend>Composable Filters</legend>
+          <label><input type="checkbox" data-meme-filter-negative /> NegativeColorToggle</label>
+          <label><input type="checkbox" data-meme-filter-sepia /> Sepia</label>
+          <label><input type="checkbox" data-meme-filter-bw /> BlackAndWhite</label>
+          <label><input type="checkbox" data-meme-filter-noire /> Noire</label>
+          <label><input type="checkbox" data-meme-filter-sharp /> Sharp</label>
+          <label><input type="checkbox" data-meme-filter-dull /> Dull</label>
+          <label><input type="checkbox" data-meme-filter-warm /> Warm</label>
+          <label><input type="checkbox" data-meme-filter-cool /> Cool</label>
+        </fieldset>
+
         <label>
           Text size
           <input type="range" min="18" max="96" step="1" value="42" data-meme-size />

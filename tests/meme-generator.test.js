@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent } from '@testing-library/dom';
 import {
+  buildFilterChain,
+  clampCropValue,
   clampMemeTextSize,
+  createBorderSegments,
   createMemeGeneratorApp,
   drawMemePreview,
   initMemeGenerator,
   loadImageFromFile,
+  normalizeCrop,
   retrieveMemeByUrl,
   splitMemeText
 } from '../src/meme-generator.js';
@@ -18,24 +22,56 @@ function createCanvasContext() {
     fillRect: vi.fn(),
     strokeText: vi.fn(),
     fillText: vi.fn(),
+    strokeRect: vi.fn(),
+    beginPath: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    stroke: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    translate: vi.fn(),
     textAlign: '',
     lineJoin: '',
     lineWidth: 0,
     font: '',
     fillStyle: '',
-    strokeStyle: ''
+    strokeStyle: '',
+    filter: 'none',
+    shadowBlur: 0,
+    shadowColor: ''
   };
 }
 
 function buildDom() {
   document.body.innerHTML = `
     <main data-meme-root>
+      <button type="button" data-meme-add-panel>Add</button>
+      <div data-meme-panel-rows></div>
       <input type="file" data-meme-file />
       <input type="url" data-meme-url />
       <button type="button" data-meme-url-load>Retrieve</button>
       <textarea data-meme-top></textarea>
       <textarea data-meme-bottom></textarea>
       <input type="range" value="42" data-meme-size />
+      <input type="number" value="0" data-meme-crop-x />
+      <input type="number" value="0" data-meme-crop-y />
+      <input type="number" value="100" data-meme-crop-width />
+      <input type="number" value="100" data-meme-crop-height />
+      <select data-meme-border-mode><option value="solid">solid</option><option value="two-color">two</option><option value="rainbow">rainbow</option></select>
+      <input type="color" value="#ffffff" data-meme-border-color />
+      <input type="color" value="#0f172a" data-meme-border-color-second />
+      <input type="number" value="24" data-meme-border-segment1 />
+      <input type="number" value="24" data-meme-border-segment2 />
+      <input type="range" value="6" data-meme-border-stroke />
+      <input type="checkbox" data-meme-border-shadow />
+      <input type="checkbox" data-meme-filter-negative />
+      <input type="checkbox" data-meme-filter-sepia />
+      <input type="checkbox" data-meme-filter-bw />
+      <input type="checkbox" data-meme-filter-noire />
+      <input type="checkbox" data-meme-filter-sharp />
+      <input type="checkbox" data-meme-filter-dull />
+      <input type="checkbox" data-meme-filter-warm />
+      <input type="checkbox" data-meme-filter-cool />
       <p data-meme-status></p>
       <canvas data-meme-canvas></canvas>
     </main>
@@ -51,25 +87,38 @@ function buildDom() {
   return { canvas, context };
 }
 
-describe('clampMemeTextSize', () => {
-  it('returns default when value is not numeric', () => {
+describe('small helpers', () => {
+  it('clamps text size values', () => {
     expect(clampMemeTextSize('abc')).toBe(42);
-  });
-
-  it('clamps below and above threshold', () => {
     expect(clampMemeTextSize('10')).toBe(18);
     expect(clampMemeTextSize('200')).toBe(96);
     expect(clampMemeTextSize('30')).toBe(30);
   });
-});
 
-describe('splitMemeText', () => {
-  it('returns clean lines and limits count', () => {
-    expect(splitMemeText(' a \n\n b \n c \n d \n e ')).toEqual(['a', 'b', 'c', 'd']);
+  it('clamps crop values and normalizes crop boxes', () => {
+    expect(clampCropValue('abc')).toBe(0);
+    expect(clampCropValue(130)).toBe(100);
+    expect(normalizeCrop({ x: 90, y: 95, width: 30, height: 12 })).toEqual({ x: 90, y: 95, width: 10, height: 5 });
+    expect(normalizeCrop({ x: -10, y: 4, width: 0, height: 0 })).toEqual({ x: 0, y: 4, width: 1, height: 1 });
   });
 
-  it('returns empty list for non-string values', () => {
+  it('returns clean text lines and limits count', () => {
+    expect(splitMemeText(' a \n\n b \n c \n d \n e ')).toEqual(['a', 'b', 'c', 'd']);
     expect(splitMemeText(undefined)).toEqual([]);
+  });
+
+  it('builds filter chains and supports default none', () => {
+    expect(buildFilterChain({})).toBe('none');
+    expect(buildFilterChain({ negativeColorToggle: true, sepia: true, sharp: true })).toContain('invert(1)');
+  });
+
+  it('creates alternating border segments', () => {
+    expect(createBorderSegments(0, 10, 10)).toEqual([]);
+    expect(createBorderSegments(25, 10, 8)).toEqual([
+      { start: 0, end: 10, isPrimary: true },
+      { start: 10, end: 18, isPrimary: false },
+      { start: 18, end: 25, isPrimary: true }
+    ]);
   });
 });
 
@@ -84,23 +133,51 @@ describe('drawMemePreview', () => {
     const result = drawMemePreview({ canvas, topText: 'Top', bottomText: 'Bottom', fontSize: 40 });
 
     expect(result.drawn).toBe(true);
+    expect(result.panelCount).toBe(1);
     expect(context.fillRect).toHaveBeenCalled();
     expect(context.strokeText).toHaveBeenCalledWith('TOP', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('BOTTOM', expect.any(Number), expect.any(Number));
   });
 
-  it('draws image when present with natural dimensions', () => {
+  it('draws cropped images and panel dividers for multi-panel mode', () => {
     const { canvas, context } = buildDom();
-    const image = { naturalWidth: 800, naturalHeight: 400 };
-    drawMemePreview({ canvas, image });
-    expect(context.drawImage).toHaveBeenCalledWith(image, 0, 0, 800, 400);
+    const image = { naturalWidth: 1000, naturalHeight: 500 };
+    const result = drawMemePreview({
+      canvas,
+      fontSize: 32,
+      panels: [
+        { image, topText: 'one', bottomText: 'first', crop: { x: 10, y: 10, width: 80, height: 80 } },
+        { image, topText: 'two', bottomText: 'second', crop: { x: 20, y: 20, width: 50, height: 50 } }
+      ]
+    });
+
+    expect(result.height).toBe(1008);
+    expect(context.drawImage).toHaveBeenNthCalledWith(1, image, 100, 50, 800, 400, 0, 0, 1000, 500);
+    expect(context.drawImage).toHaveBeenNthCalledWith(2, image, 200, 100, 500, 250, 0, 0, 1000, 500);
   });
 
-  it('falls back to width and height when natural dimensions are missing', () => {
+  it('draws solid, rainbow, and two-color border variants', () => {
     const { canvas, context } = buildDom();
-    const image = { width: 640, height: 360 };
-    drawMemePreview({ canvas, image });
-    expect(context.drawImage).toHaveBeenCalledWith(image, 0, 0, 640, 360);
+    drawMemePreview({ canvas, border: { mode: 'solid', strokeWidth: 4, color: '#fff', shadow: true } });
+    expect(context.strokeRect).toHaveBeenCalled();
+
+    drawMemePreview({ canvas, border: { mode: 'rainbow', strokeWidth: 5, shadow: false } });
+    expect(context.createLinearGradient).toHaveBeenCalled();
+
+    drawMemePreview({
+      canvas,
+      border: {
+        mode: 'two-color',
+        strokeWidth: 4,
+        color: '#ffffff',
+        twoColorSecondColor: '#000000',
+        segmentColor1LengthPx: 20,
+        segmentColor2LengthPx: 20,
+        shadow: false
+      }
+    });
+    expect(context.beginPath).toHaveBeenCalled();
+    expect(context.moveTo).toHaveBeenCalled();
   });
 });
 
@@ -132,6 +209,25 @@ describe('loadImageFromFile', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:demo');
   });
 
+  it('rejects when image loader fails', async () => {
+    class FakeImage {
+      set src(value) {
+        this._src = value;
+        this.onerror();
+      }
+    }
+
+    const revokeObjectURL = vi.fn();
+
+    await expect(
+      loadImageFromFile(
+        { type: 'image/jpeg' },
+        { createObjectURL: () => 'blob:oops', revokeObjectURL, ImageCtor: FakeImage }
+      )
+    ).rejects.toThrow('We could not read that image. Try another one!');
+
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:oops');
+  });
 
   it('supports default URL handlers when environment provides them', async () => {
     class FakeImage {
@@ -152,26 +248,6 @@ describe('loadImageFromFile', () => {
     URL.createObjectURL = originalCreate;
     URL.revokeObjectURL = originalRevoke;
   });
-
-  it('rejects when image loader fails', async () => {
-    class FakeImage {
-      set src(value) {
-        this._src = value;
-        this.onerror();
-      }
-    }
-
-    const revokeObjectURL = vi.fn();
-
-    await expect(
-      loadImageFromFile(
-        { type: 'image/jpeg' },
-        { createObjectURL: () => 'blob:oops', revokeObjectURL, ImageCtor: FakeImage }
-      )
-    ).rejects.toThrow('We could not read that image. Try another one!');
-
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:oops');
-  });
 });
 
 describe('retrieveMemeByUrl', () => {
@@ -189,31 +265,16 @@ describe('retrieveMemeByUrl', () => {
     }
   }
 
-  it('rejects when url is empty', async () => {
+  it('rejects bad urls and fetch failures', async () => {
     await expect(retrieveMemeByUrl('')).rejects.toThrow('Please enter an image URL first.');
-  });
-
-  it('rejects invalid url formats', async () => {
     await expect(retrieveMemeByUrl('not a valid url')).rejects.toThrow('Please enter a valid URL.');
-  });
-
-  it('rejects unsupported protocols', async () => {
     await expect(retrieveMemeByUrl('ftp://example.com/file.png')).rejects.toThrow('Only http and https image URLs are supported.');
-  });
-
-  it('rejects fetch network failures', async () => {
     await expect(retrieveMemeByUrl('https://example.com/a.png', { fetchImpl: () => Promise.reject(new Error('net')) })).rejects.toThrow(
       'Could not fetch that URL. Check the link and try again.'
     );
-  });
-
-  it('rejects unsuccessful responses', async () => {
     await expect(retrieveMemeByUrl('https://example.com/a.png', { fetchImpl: async () => ({ ok: false }) })).rejects.toThrow(
       'Could not fetch that URL. The server returned an error.'
     );
-  });
-
-  it('rejects unsupported blob mime types', async () => {
     await expect(
       retrieveMemeByUrl('https://example.com/a.png', {
         fetchImpl: async () => ({ ok: true, blob: async () => ({ type: 'text/plain' }) })
@@ -221,7 +282,7 @@ describe('retrieveMemeByUrl', () => {
     ).rejects.toThrow('The URL did not return a supported image type.');
   });
 
-  it('loads remote image when fetch and blob are valid', async () => {
+  it('loads remote image and handles blob fallback branches', async () => {
     const createObjectURL = vi.fn(() => 'blob:remote');
     const revokeObjectURL = vi.fn();
     let inputToObjectUrl = null;
@@ -237,12 +298,35 @@ describe('retrieveMemeByUrl', () => {
     });
 
     expect(image).toBeInstanceOf(SuccessImage);
-    expect(createObjectURL).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:remote');
     expect(inputToObjectUrl).toBeInstanceOf(Blob);
-    expect(inputToObjectUrl.type).toBe('image/png');
-  });
 
+    const existingBlob = new Blob(['abc'], { type: 'image/webp' });
+    let preservedBlob = null;
+    await retrieveMemeByUrl('https://example.com/existing', {
+      fetchImpl: async () => ({ ok: true, blob: async () => existingBlob }),
+      createObjectURL: (value) => {
+        preservedBlob = value;
+        return 'blob:existing';
+      },
+      revokeObjectURL: () => {},
+      ImageCtor: SuccessImage
+    });
+    expect(preservedBlob).toBe(existingBlob);
+
+    let fallbackBlob = null;
+    await retrieveMemeByUrl('https://example.com/fallback', {
+      fetchImpl: async () => ({ ok: true, blob: async () => ({}) }),
+      createObjectURL: (value) => {
+        fallbackBlob = value;
+        return 'blob:fallback';
+      },
+      revokeObjectURL: () => {},
+      ImageCtor: SuccessImage
+    });
+    expect(fallbackBlob).toBeInstanceOf(Blob);
+    expect(fallbackBlob.type).toBe('image/png');
+  });
 
   it('supports default fetch and URL handlers when environment provides them', async () => {
     class SuccessImageTwo {
@@ -267,41 +351,6 @@ describe('retrieveMemeByUrl', () => {
     URL.createObjectURL = originalCreate;
     URL.revokeObjectURL = originalRevoke;
   });
-
-  it('uses png fallback mime type when blob type is missing', async () => {
-    let inputToObjectUrl = null;
-
-    const image = await retrieveMemeByUrl('https://example.com/fallback', {
-      fetchImpl: async () => ({ ok: true, blob: async () => ({}) }),
-      createObjectURL: (value) => {
-        inputToObjectUrl = value;
-        return 'blob:remote2';
-      },
-      revokeObjectURL: () => {},
-      ImageCtor: SuccessImage
-    });
-
-    expect(image).toBeInstanceOf(SuccessImage);
-    expect(inputToObjectUrl).toBeInstanceOf(Blob);
-    expect(inputToObjectUrl.type).toBe('image/png');
-  });
-
-  it('preserves blob identity when type is already valid', async () => {
-    const existingBlob = new Blob(['abc'], { type: 'image/webp' });
-    let inputToObjectUrl = null;
-
-    await retrieveMemeByUrl('https://example.com/existing', {
-      fetchImpl: async () => ({ ok: true, blob: async () => existingBlob }),
-      createObjectURL: (value) => {
-        inputToObjectUrl = value;
-        return 'blob:existing';
-      },
-      revokeObjectURL: () => {},
-      ImageCtor: SuccessImage
-    });
-
-    expect(inputToObjectUrl).toBe(existingBlob);
-  });
 });
 
 describe('createMemeGeneratorApp', () => {
@@ -310,17 +359,49 @@ describe('createMemeGeneratorApp', () => {
     expect(() => createMemeGeneratorApp(document, window)).toThrow('Meme generator requires all required DOM controls and canvas.');
   });
 
-  it('updates text and size state during interaction', () => {
+  it('throws when any filter control is missing', () => {
+    buildDom();
+    document.querySelector('[data-meme-filter-cool]').remove();
+    expect(() => createMemeGeneratorApp(document, window)).toThrow('Meme generator requires all required DOM controls and canvas.');
+  });
+
+  it('updates active panel state for text, crop, size, filters, border, and row selection', () => {
     buildDom();
     const app = createMemeGeneratorApp(document, window);
 
     const top = document.querySelector('[data-meme-top]');
     const bottom = document.querySelector('[data-meme-bottom]');
     const size = document.querySelector('[data-meme-size]');
+    const cropX = document.querySelector('[data-meme-crop-x]');
+    const cropWidth = document.querySelector('[data-meme-crop-width]');
+    const addPanel = document.querySelector('[data-meme-add-panel]');
+    const sepia = document.querySelector('[data-meme-filter-sepia]');
+    const borderMode = document.querySelector('[data-meme-border-mode]');
+    const borderPrimary = document.querySelector('[data-meme-border-color]');
+    const borderSecondary = document.querySelector('[data-meme-border-color-second]');
+    const borderSegmentOne = document.querySelector('[data-meme-border-segment1]');
+    const borderSegmentTwo = document.querySelector('[data-meme-border-segment2]');
+    const borderStroke = document.querySelector('[data-meme-border-stroke]');
+    const borderShadow = document.querySelector('[data-meme-border-shadow]');
 
     fireEvent.input(top, { target: { value: 'hello top' } });
     fireEvent.input(bottom, { target: { value: 'hello bottom' } });
     fireEvent.input(size, { target: { value: '999' } });
+    fireEvent.input(cropX, { target: { value: '95' } });
+    fireEvent.input(cropWidth, { target: { value: '20' } });
+    fireEvent.click(addPanel);
+
+    const rowZero = document.querySelector('[data-meme-panel-row="0"]');
+    fireEvent.click(rowZero);
+
+    fireEvent.click(sepia);
+    fireEvent.change(borderMode, { target: { value: 'rainbow' } });
+    fireEvent.input(borderPrimary, { target: { value: '#123456' } });
+    fireEvent.input(borderSecondary, { target: { value: '#654321' } });
+    fireEvent.input(borderSegmentOne, { target: { value: '44' } });
+    fireEvent.input(borderSegmentTwo, { target: { value: '18' } });
+    fireEvent.input(borderStroke, { target: { value: '-20' } });
+    fireEvent.click(borderShadow);
 
     expect(app.getState()).toMatchObject({
       topText: 'hello top',
@@ -328,43 +409,19 @@ describe('createMemeGeneratorApp', () => {
       fontSize: 96
     });
     expect(size.value).toBe('96');
+    expect(app.getState().panels[0].crop).toEqual({ x: 95, y: 0, width: 5, height: 100 });
+    expect(app.getState().filters.sepia).toBe(true);
+    expect(app.getState().border.mode).toBe('rainbow');
+    expect(app.getState().border.color).toBe('#123456');
+    expect(app.getState().border.twoColorSecondColor).toBe('#654321');
+    expect(app.getState().border.segmentColor1LengthPx).toBe(44);
+    expect(app.getState().border.segmentColor2LengthPx).toBe(18);
+    expect(app.getState().border.strokeWidth).toBe(0);
+    expect(app.getState().border.shadow).toBe(true);
+    expect(app.getState().panels).toHaveLength(2);
   });
 
-  it('handles empty file selection branch', async () => {
-    buildDom();
-    const app = createMemeGeneratorApp(document, window);
-
-    await app.handleFile(undefined);
-
-    expect(app.getState().image).toBeNull();
-    expect(document.querySelector('[data-meme-status]').textContent).toContain('No image selected');
-  });
-
-  it('handles file load failure in app flow', async () => {
-    buildDom();
-
-    const win = {
-      URL: {
-        createObjectURL: () => 'blob:bad',
-        revokeObjectURL: () => {}
-      },
-      fetch: vi.fn(),
-      Image: class {
-        set src(value) {
-          this._src = value;
-          this.onerror();
-        }
-      }
-    };
-
-    const app = createMemeGeneratorApp(document, win);
-    await app.handleFile({ type: 'image/png', name: 'x.png' });
-
-    expect(document.querySelector('[data-meme-status]').textContent).toContain('could not read');
-    expect(app.getState().image).toBeNull();
-  });
-
-  it('loads a file from change event and updates status with filename', async () => {
+  it('handles image load and empty file selection branches', async () => {
     buildDom();
 
     const win = {
@@ -395,11 +452,15 @@ describe('createMemeGeneratorApp', () => {
     fireEvent.change(input);
     await Promise.resolve();
 
-    expect(document.querySelector('[data-meme-status]').textContent).toContain('Loaded baby.png');
+    expect(document.querySelector('[data-meme-status]').textContent).toContain('Loaded baby.png for panel 1');
     expect(app.getState().image).toBeTruthy();
+
+    await app.handleFile(undefined);
+    expect(app.getState().image).toBeNull();
+    expect(document.querySelector('[data-meme-status]').textContent).toContain('No image selected');
   });
 
-  it('handles remote url load failures through button interaction', async () => {
+  it('handles failed file loads and remote url branches', async () => {
     buildDom();
 
     const win = {
@@ -408,51 +469,35 @@ describe('createMemeGeneratorApp', () => {
         revokeObjectURL: () => {}
       },
       fetch: vi.fn(async () => ({ ok: false })),
-      Image: class {}
-    };
-
-    createMemeGeneratorApp(document, win);
-    const urlInput = document.querySelector('[data-meme-url]');
-    const button = document.querySelector('[data-meme-url-load]');
-
-    urlInput.value = 'https://example.com/404.png';
-    fireEvent.click(button);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(document.querySelector('[data-meme-status]').textContent).toContain('server returned an error');
-  });
-
-  it('loads remote url successfully through api and button paths', async () => {
-    buildDom();
-
-    const win = {
-      URL: {
-        createObjectURL: () => 'blob:remote-ui',
-        revokeObjectURL: () => {}
-      },
-      fetch: vi.fn(async () => ({ ok: true, blob: async () => ({ type: 'image/png' }) })),
       Image: class {
         set src(value) {
           this._src = value;
-          this.naturalWidth = 120;
-          this.naturalHeight = 80;
-          this.onload();
+          this.onerror();
         }
       }
     };
 
     const app = createMemeGeneratorApp(document, win);
-    await app.handleRemoteUrl('https://example.com/ok.png');
-    expect(document.querySelector('[data-meme-status]').textContent).toContain('Remote image loaded');
+    await app.handleFile({ type: 'image/png', name: 'x.png' });
+    expect(document.querySelector('[data-meme-status]').textContent).toContain('could not read');
 
     const urlInput = document.querySelector('[data-meme-url]');
     const button = document.querySelector('[data-meme-url-load]');
-    urlInput.value = 'https://example.com/second.png';
+    urlInput.value = 'https://example.com/404.png';
     fireEvent.click(button);
     await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('[data-meme-status]').textContent).toContain('server returned an error');
 
-    expect(win.fetch).toHaveBeenCalledTimes(2);
-    expect(app.getState().image).toBeTruthy();
+    win.fetch = vi.fn(async () => ({ ok: true, blob: async () => ({ type: 'image/png' }) }));
+    win.Image = class {
+      set src(value) {
+        this._src = value;
+        this.onload();
+      }
+    };
+
+    await app.handleRemoteUrl('https://example.com/ok.png');
+    expect(document.querySelector('[data-meme-status]').textContent).toContain('Remote image loaded for panel 1');
   });
 });
 

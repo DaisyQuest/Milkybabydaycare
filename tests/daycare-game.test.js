@@ -67,6 +67,12 @@ describe('getSafeBoardPosition', () => {
     const fallback = getSafeBoardPosition({ x: 0, y: 0, rageLevel: Number.NaN }, 0, 0);
     expect(fallback.x).toBe(50);
     expect(fallback.y).toBe(50);
+
+    const centeredX = getSafeBoardPosition({ x: 80, y: 40, rageLevel: 1 }, 50, 600);
+    expect(centeredX.x).toBe(50);
+
+    const centeredY = getSafeBoardPosition({ x: 40, y: 80, rageLevel: 1 }, 600, 120);
+    expect(centeredY.y).toBe(50);
   });
 });
 
@@ -104,6 +110,17 @@ describe('applyNeedTick', () => {
     expect(enraged.rageLevel).toBeGreaterThan(0);
     expect(enraged.attackDamagePerSecond).toBeGreaterThan(0);
   });
+
+  it('caps needs at 100 and saturates rage level at 1', () => {
+    const baby = {
+      ...createBaby(1, () => 0),
+      needs: { milk: 100, caress: 99, cleanup: 98 }
+    };
+    const next = applyNeedTick(baby, 4_000);
+    expect(next.needs).toEqual({ milk: 100, caress: 100, cleanup: 100 });
+    expect(next.rageLevel).toBe(1);
+    expect(next.attackDamagePerSecond).toBeCloseTo(6, 6);
+  });
 });
 
 describe('spawnBabyIfNeeded', () => {
@@ -116,6 +133,14 @@ describe('spawnBabyIfNeeded', () => {
     expect(spawned.babies).toHaveLength(3);
     expect(spawned.spawnedBabies).toBe(3);
     expect(spawned.message).toContain('new baby');
+
+    const lateGame = spawnBabyIfNeeded({
+      ...state,
+      elapsedMs: 12_000,
+      spawnedBabies: 40,
+      nextBabyAtMs: 12_000
+    }, () => 0);
+    expect(lateGame.nextBabyAtMs - 12_000).toBe(6_000);
   });
 });
 
@@ -158,6 +183,43 @@ describe('tickDaycareState', () => {
     expect(next.health).toBe(0);
     expect(next.gameOver).toBe(true);
     expect(next.message).toContain('Game over');
+  });
+
+  it('spawns babies when timer is reached, even under pressure', () => {
+    const state = {
+      ...createInitialDaycareState(() => 0),
+      babies: [{
+        ...createBaby(1, () => 0),
+        needs: { milk: 100, caress: 100, cleanup: 100 },
+        enraged: true,
+        rageLevel: 1,
+        attackDamagePerSecond: 6
+      }],
+      elapsedMs: 11_900,
+      nextBabyAtMs: 12_000
+    };
+    const next = tickDaycareState(state, 250, () => 0);
+    expect(next.babies.length).toBe(2);
+    expect(next.message).toContain('new baby');
+    expect(next.health).toBeLessThan(100);
+  });
+
+  it('surfaces attack warning when damage arrives without a spawn event', () => {
+    const state = {
+      ...createInitialDaycareState(() => 0),
+      babies: [{
+        ...createBaby(1, () => 0),
+        needs: { milk: 100, caress: 100, cleanup: 100 },
+        enraged: true,
+        rageLevel: 1,
+        attackDamagePerSecond: 6
+      }],
+      elapsedMs: 100,
+      nextBabyAtMs: 12_000
+    };
+    const next = tickDaycareState(state, 250, () => 0);
+    expect(next.message).toContain('attacking');
+    expect(next.health).toBeLessThan(100);
   });
 });
 
@@ -212,12 +274,27 @@ describe('tooling reducers', () => {
     expect(cleaned.babies[0].needs.cleanup).toBe(0);
     expect(cleaned.score).toBe(1);
     expect(cleaned.message).toContain('Cleanup complete');
+    expect(cleaned.babies[0].enraged).toBe(true);
+
+    const fullyCalm = completeCleanup({
+      ...cleanupReady,
+      babies: [{
+        ...createBaby(1, () => 0),
+        cleanupPending: true,
+        needs: { milk: 30, caress: 20, cleanup: 100 }
+      }]
+    }, 1);
+    expect(fullyCalm.babies[0].enraged).toBe(false);
+    expect(fullyCalm.babies[0].attackDamagePerSecond).toBe(0);
   });
 });
 
 describe('createDaycareGameApp / initDaycareGame', () => {
   it('returns null without required DOM/window', () => {
     expect(createDaycareGameApp()).toBeNull();
+
+    document.body.innerHTML = '<main data-daycare-root><section data-daycare-board></section></main>';
+    expect(createDaycareGameApp(document, window)).toBeNull();
   });
 
   it('wires controls, tick schedule, cleanup drag/drop, reset, and destroy', () => {
@@ -247,6 +324,7 @@ describe('createDaycareGameApp / initDaycareGame', () => {
     expect(document.querySelector('[data-daycare-health-label]').textContent).toContain('100');
     const initialBaby = document.querySelector('[data-baby-id="1"]');
     expect(initialBaby.style.left).not.toBe('10%');
+    expect(initialBaby.querySelector('.daycare-baby__bubble')).toBeTruthy();
 
     document.querySelector('[data-daycare-tool="cleanup"]').click();
     document.querySelector('[data-baby-id="1"]').click();
@@ -262,6 +340,7 @@ describe('createDaycareGameApp / initDaycareGame', () => {
 
     setIntervalMock.cb();
     expect(app.getState().elapsedMs).toBeGreaterThan(0);
+    expect(document.querySelector('[data-daycare-root]').dataset.gameOver).toBe('false');
 
     app.destroy();
     expect(clearIntervalMock).toHaveBeenCalledWith(22);

@@ -90,6 +90,8 @@ describe('cryptographic image playground entrypoint file', () => {
     expect(html).toContain('<title>Generate Cryptographic Images</title>');
     expect(html).toContain('data-crypto-root');
     expect(html).toContain('data-crypto-request');
+    expect(html).toContain('data-crypto-file');
+    expect(html).toContain('data-crypto-upload');
     expect(html).toContain('data-crypto-response');
     expect(html).toContain('data-crypto-preview');
     expect(html).toContain('data-crypto-op="encrypt-no-key"');

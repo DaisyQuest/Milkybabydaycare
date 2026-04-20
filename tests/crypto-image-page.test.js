@@ -9,12 +9,19 @@ function buildDom() {
       <pre data-crypto-response>{}</pre>
       <p data-crypto-status></p>
       <img data-crypto-preview hidden />
+      <input type="file" data-crypto-file />
+      <button data-crypto-upload></button>
       <button data-crypto-op="encrypt-no-key"></button>
       <button data-crypto-op="base64-to-image"></button>
       <button data-crypto-op="random-simple"></button>
       <button data-crypto-op="unknown-op"></button>
     </main>
   `;
+}
+
+async function flushAsync() {
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 describe('createCryptoImageApp', () => {
@@ -38,16 +45,14 @@ describe('createCryptoImageApp', () => {
 
     document.querySelector('[data-crypto-request]').value = '{bad json';
     fireEvent.click(document.querySelector('[data-crypto-op="encrypt-no-key"]'));
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushAsync();
 
     expect(fetch).toHaveBeenCalledWith('/api/crypto/encrypt/no-key', expect.objectContaining({ method: 'POST' }));
     expect(document.querySelector('[data-crypto-status]').textContent).toContain('completed');
     expect(document.querySelector('[data-crypto-preview]').hidden).toBe(false);
 
     fireEvent.click(document.querySelector('[data-crypto-op="base64-to-image"]'));
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushAsync();
 
     expect(document.querySelector('[data-crypto-status]').textContent).toContain('failed');
     expect(document.querySelector('[data-crypto-preview]').hidden).toBe(true);
@@ -66,10 +71,101 @@ describe('createCryptoImageApp', () => {
     expect(document.querySelector('[data-crypto-status]').textContent).toContain('Unknown operation');
 
     fireEvent.click(document.querySelector('[data-crypto-op="encrypt-no-key"]'));
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushAsync();
     expect(document.querySelector('[data-crypto-status]').textContent).toContain('unexpectedly');
     expect(document.querySelector('[data-crypto-response]').textContent).toContain('network down');
+  });
+
+  it('loads file input into request json using upload helper and preserves existing fields', async () => {
+    buildDom();
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    const addEventListener = vi.fn((type, callback) => {
+      if (type === 'load') {
+        addEventListener.loadCallback = callback;
+      }
+      if (type === 'error') {
+        addEventListener.errorCallback = callback;
+      }
+    });
+    const mockReader = {
+      result: 'data:image/png;base64,QUJD',
+      addEventListener,
+      readAsDataURL: vi.fn(function readAsDataURL() {
+        addEventListener.loadCallback();
+      })
+    };
+    const FileReader = vi.fn(() => mockReader);
+    const app = createCryptoImageApp(document, { fetch, FileReader });
+
+    const file = new File(['abc'], 'photo.png', { type: 'image/png' });
+    const input = document.querySelector('[data-crypto-file]');
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [file]
+    });
+
+    fireEvent.click(document.querySelector('[data-crypto-upload]'));
+    await flushAsync();
+
+    const nextPayload = JSON.parse(document.querySelector('[data-crypto-request]').value);
+    expect(nextPayload).toMatchObject({ imageBase64: 'QUJD', mimeType: 'image/png', key: 'k', base64: 'AQID' });
+    expect(document.querySelector('[data-crypto-status]').textContent).toContain('loaded into request JSON');
+    expect(app.fileToBase64).toBeTypeOf('function');
+    expect(FileReader).toHaveBeenCalledTimes(1);
+
+    const markerlessReader = {
+      result: 'not-a-data-url',
+      addEventListener: vi.fn((type, callback) => {
+        if (type === 'load') {
+          markerlessReader.loadCallback = callback;
+        }
+      }),
+      readAsDataURL: vi.fn(function readAsDataURL() {
+        markerlessReader.loadCallback();
+      })
+    };
+    const markerlessApp = createCryptoImageApp(document, { fetch, FileReader: vi.fn(() => markerlessReader) });
+    await expect(markerlessApp.fileToBase64(new File(['abc'], 'unknown.bin'))).resolves.toEqual({
+      base64: '',
+      mimeType: 'application/octet-stream'
+    });
+  });
+
+  it('handles upload helper edge cases: no file, read failure, and no FileReader support', async () => {
+    buildDom();
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    const addEventListener = vi.fn((type, callback) => {
+      if (type === 'error') {
+        addEventListener.errorCallback = callback;
+      }
+    });
+    const mockReader = {
+      result: '',
+      addEventListener,
+      readAsDataURL: vi.fn(function readAsDataURL() {
+        addEventListener.errorCallback();
+      })
+    };
+    const app = createCryptoImageApp(document, { fetch, FileReader: vi.fn(() => mockReader) });
+    const input = document.querySelector('[data-crypto-file]');
+
+    Object.defineProperty(input, 'files', { configurable: true, value: [] });
+    fireEvent.click(document.querySelector('[data-crypto-upload]'));
+    expect(document.querySelector('[data-crypto-status]').textContent).toContain('Choose an image');
+
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [new File(['abc'], 'broken.png', { type: 'image/png' })]
+    });
+    fireEvent.click(document.querySelector('[data-crypto-upload]'));
+    await flushAsync();
+    expect(document.querySelector('[data-crypto-status]').textContent).toContain('File upload failed');
+    expect(document.querySelector('[data-crypto-response]').textContent).toContain('Failed to read file.');
+
+    const noReaderApp = createCryptoImageApp(document, { fetch });
+    await expect(noReaderApp.fileToBase64(new File(['abc'], 'no-reader.bin'))).rejects.toThrow(
+      'FileReader is not supported in this browser.'
+    );
   });
 });
 

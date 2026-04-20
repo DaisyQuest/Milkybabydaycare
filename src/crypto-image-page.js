@@ -24,6 +24,46 @@ function safeJsonParse(value, fallback = {}) {
   }
 }
 
+function updateRequestBodyWithImage(requestInput, filePayload) {
+  const parsedBody = safeJsonParse(requestInput.value, {});
+  const nextBody = {
+    ...parsedBody,
+    imageBase64: filePayload.base64,
+    mimeType: filePayload.mimeType
+  };
+
+  requestInput.value = JSON.stringify(nextBody, null, 2);
+}
+
+function fileToBase64(file, win) {
+  return new Promise((resolve, reject) => {
+    if (!win.FileReader) {
+      reject(new Error('FileReader is not supported in this browser.'));
+      return;
+    }
+
+    const reader = new win.FileReader();
+
+    reader.addEventListener('load', () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const marker = 'base64,';
+      const markerIndex = result.indexOf(marker);
+      const base64 = markerIndex >= 0 ? result.slice(markerIndex + marker.length) : '';
+
+      resolve({
+        base64,
+        mimeType: file.type || 'application/octet-stream'
+      });
+    });
+
+    reader.addEventListener('error', () => {
+      reject(new Error('Failed to read file.'));
+    });
+
+    reader.readAsDataURL(file);
+  });
+}
+
 export function createCryptoImageApp(doc = document, win = window) {
   const root = doc.querySelector('[data-crypto-root]');
   const requestInput = doc.querySelector('[data-crypto-request]');
@@ -31,6 +71,8 @@ export function createCryptoImageApp(doc = document, win = window) {
   const controls = [...doc.querySelectorAll('[data-crypto-op]')];
   const status = doc.querySelector('[data-crypto-status]');
   const preview = doc.querySelector('[data-crypto-preview]');
+  const fileInput = doc.querySelector('[data-crypto-file]');
+  const uploadButton = doc.querySelector('[data-crypto-upload]');
 
   if (!root || !requestInput || !responseOutput || controls.length === 0) {
     throw new Error('Crypto image app requires root, request, response, and controls.');
@@ -86,9 +128,32 @@ export function createCryptoImageApp(doc = document, win = window) {
     });
   });
 
+  if (fileInput && uploadButton) {
+    uploadButton.addEventListener('click', async () => {
+      const [file] = fileInput.files || [];
+
+      if (!file) {
+        status.textContent = 'Choose an image file before uploading.';
+        return;
+      }
+
+      status.textContent = `Reading ${file.name}...`;
+
+      try {
+        const payload = await fileToBase64(file, win);
+        updateRequestBodyWithImage(requestInput, payload);
+        status.textContent = `${file.name} loaded into request JSON.`;
+      } catch (error) {
+        status.textContent = 'File upload failed.';
+        responseOutput.textContent = JSON.stringify({ error: error.message }, null, 2);
+      }
+    });
+  }
+
   return {
     runOperation,
-    operations: OPERATIONS
+    operations: OPERATIONS,
+    fileToBase64: (file) => fileToBase64(file, win)
   };
 }
 

@@ -1247,6 +1247,8 @@ button:focus-visible::after {
 .daycare-board {
   min-height: 460px;
   position: relative;
+  isolation: isolate;
+  contain: layout paint;
   border-radius: 1.2rem;
   border: 1px solid var(--panel-border);
   background:
@@ -1257,12 +1259,16 @@ button:focus-visible::after {
 
 .daycare-baby {
   position: absolute;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) translateZ(0);
   border: none;
   background: transparent;
+  margin: 0;
+  padding: 0;
   width: calc(72px + (var(--rage-level, 0) * 34px));
   height: calc(100px + (var(--rage-level, 0) * 40px));
   cursor: pointer;
+  touch-action: manipulation;
+  will-change: transform;
 }
 
 .daycare-baby__head {

@@ -6,6 +6,7 @@ import {
   createBaby,
   createDaycareGameApp,
   createInitialDaycareState,
+  getSafeBoardPosition,
   getNeedEmoji,
   initDaycareGame,
   resolveFailurePenalty,
@@ -41,13 +42,31 @@ describe('createBaby', () => {
     expect(baby).toEqual({
       id: 7,
       x: 10,
-      y: 10,
+      y: 22,
       needs: { milk: 0, caress: 0, cleanup: 0 },
       cleanupPending: false,
       enraged: false,
       rageLevel: 0,
       attackDamagePerSecond: 0
     });
+  });
+});
+
+describe('getSafeBoardPosition', () => {
+  it('clamps babies within board-safe boundaries, including rage growth and fallback dimensions', () => {
+    const rageBaby = { x: 1, y: 2, rageLevel: 1 };
+    const clamped = getSafeBoardPosition(rageBaby, 400, 460);
+    expect(clamped.x).toBeGreaterThan(10);
+    expect(clamped.y).toBeGreaterThan(20);
+
+    const farEdgeBaby = { x: 99, y: 99, rageLevel: 0 };
+    const maxClamped = getSafeBoardPosition(farEdgeBaby, 400, 460);
+    expect(maxClamped.x).toBeLessThan(95);
+    expect(maxClamped.y).toBeLessThan(95);
+
+    const fallback = getSafeBoardPosition({ x: 0, y: 0, rageLevel: Number.NaN }, 0, 0);
+    expect(fallback.x).toBe(50);
+    expect(fallback.y).toBe(50);
   });
 });
 
@@ -203,6 +222,9 @@ describe('createDaycareGameApp / initDaycareGame', () => {
 
   it('wires controls, tick schedule, cleanup drag/drop, reset, and destroy', () => {
     buildDom();
+    const board = document.querySelector('[data-daycare-board]');
+    Object.defineProperty(board, 'clientWidth', { value: 400, configurable: true });
+    Object.defineProperty(board, 'clientHeight', { value: 460, configurable: true });
     const setIntervalMock = vi.fn((fn) => {
       setIntervalMock.cb = fn;
       return 15;
@@ -223,6 +245,8 @@ describe('createDaycareGameApp / initDaycareGame', () => {
 
     expect(app).toBeTruthy();
     expect(document.querySelector('[data-daycare-health-label]').textContent).toContain('100');
+    const initialBaby = document.querySelector('[data-baby-id="1"]');
+    expect(initialBaby.style.left).not.toBe('10%');
 
     document.querySelector('[data-daycare-tool="cleanup"]').click();
     document.querySelector('[data-baby-id="1"]').click();

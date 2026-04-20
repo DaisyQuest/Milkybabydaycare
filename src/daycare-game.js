@@ -4,10 +4,16 @@ const NEED_EMOJI = {
   caress: '🤲',
   cleanup: '💩'
 };
+const BASE_BABY_WIDTH = 72;
+const BASE_BABY_HEIGHT = 100;
+const MAX_RAGE_WIDTH_GROWTH = 34;
+const MAX_RAGE_HEIGHT_GROWTH = 40;
+const BUBBLE_VERTICAL_OFFSET = 30;
+const EDGE_PADDING_PX = 6;
 
 export function createBaby(id, rng = Math.random) {
   const x = 10 + Math.floor(rng() * 80);
-  const y = 10 + Math.floor(rng() * 70);
+  const y = 22 + Math.floor(rng() * 64);
 
   return {
     id,
@@ -18,6 +24,30 @@ export function createBaby(id, rng = Math.random) {
     enraged: false,
     rageLevel: 0,
     attackDamagePerSecond: 0
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function getSafeBoardPosition(baby, boardWidth, boardHeight) {
+  const rageLevel = clamp(Number.isFinite(baby?.rageLevel) ? baby.rageLevel : 0, 0, 1);
+  const width = BASE_BABY_WIDTH + (rageLevel * MAX_RAGE_WIDTH_GROWTH);
+  const height = BASE_BABY_HEIGHT + (rageLevel * MAX_RAGE_HEIGHT_GROWTH);
+  const safeBoardWidth = Math.max(boardWidth, 1);
+  const safeBoardHeight = Math.max(boardHeight, 1);
+
+  const minX = ((width / 2) + EDGE_PADDING_PX) / safeBoardWidth * 100;
+  const maxX = 100 - minX;
+  const minY = ((height / 2) + BUBBLE_VERTICAL_OFFSET + EDGE_PADDING_PX) / safeBoardHeight * 100;
+  const maxY = 100 - (((height / 2) + EDGE_PADDING_PX) / safeBoardHeight * 100);
+  const centeredX = minX >= maxX;
+  const centeredY = minY >= maxY;
+
+  return {
+    x: centeredX ? 50 : clamp(baby.x, minX, maxX),
+    y: centeredY ? 50 : clamp(baby.y, minY, maxY)
   };
 }
 
@@ -273,11 +303,12 @@ export function createDaycareGameApp(doc, win, {
     board.innerHTML = '';
 
     state.babies.forEach((baby) => {
+      const safePosition = getSafeBoardPosition(baby, board.clientWidth, board.clientHeight);
       const babyEl = doc.createElement('button');
       babyEl.type = 'button';
       babyEl.className = 'daycare-baby';
-      babyEl.style.left = `${baby.x}%`;
-      babyEl.style.top = `${baby.y}%`;
+      babyEl.style.left = `${safePosition.x}%`;
+      babyEl.style.top = `${safePosition.y}%`;
       babyEl.style.setProperty('--rage-level', String(baby.rageLevel));
       babyEl.dataset.enraged = String(baby.enraged);
       babyEl.dataset.babyId = String(baby.id);

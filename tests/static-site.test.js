@@ -65,6 +65,16 @@ describe('site stylesheet layout contract', () => {
     expect(css).toContain('grid-template-columns: minmax(300px, 1fr);');
     expect(css).not.toContain('place-items: center;');
   });
+
+  it('keeps daycare thought bubbles visible outside baby hitbox bounds', () => {
+    const css = readProjectFile('src/site.css');
+
+    expect(css).toContain('.daycare-baby {');
+    expect(css).toContain('overflow: visible;');
+    expect(css).toContain('.daycare-baby__bubble {');
+    expect(css).toContain('top: -30px;');
+    expect(css).toContain('pointer-events: none;');
+  });
 });
 
 describe('meme generator entrypoint file', () => {

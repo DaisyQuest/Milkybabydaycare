@@ -155,6 +155,17 @@ describe('resolveFailurePenalty', () => {
     expect(resolved.health).toBe(90);
     expect(resolved.failureCost).toBe(13);
   });
+
+  it('does not charge penalties for babies already enraged or still calm', () => {
+    const base = createInitialDaycareState(() => 0);
+    const prev = [{ enraged: true }, { enraged: false }];
+    const next = [{ enraged: true }, { enraged: false }];
+    const resolved = resolveFailurePenalty(base, prev, next);
+
+    expect(resolved.failures).toBe(base.failures);
+    expect(resolved.health).toBe(base.health);
+    expect(resolved.failureCost).toBe(base.failureCost);
+  });
 });
 
 describe('tickDaycareState', () => {
@@ -221,6 +232,17 @@ describe('tickDaycareState', () => {
     expect(next.message).toContain('attacking');
     expect(next.health).toBeLessThan(100);
   });
+
+  it('preserves existing message when no incoming damage occurs', () => {
+    const state = {
+      ...createInitialDaycareState(() => 0),
+      message: 'Custom status message',
+      elapsedMs: 100,
+      nextBabyAtMs: 12_000
+    };
+    const next = tickDaycareState(state, 250, () => 0);
+    expect(next.message).toBe('Custom status message');
+  });
 });
 
 describe('tooling reducers', () => {
@@ -256,6 +278,26 @@ describe('tooling reducers', () => {
 
     const caressed = applyToolToBaby({ ...state, selectedTool: 'caress' }, 1);
     expect(caressed.message).toContain('Caress delivered');
+  });
+
+  it('applyToolToBaby re-evaluates enraged state after need reduction', () => {
+    const state = {
+      ...createInitialDaycareState(() => 0),
+      babies: [{
+        ...createBaby(1, () => 0),
+        needs: { milk: 95, caress: 20, cleanup: 20 },
+        enraged: true,
+        rageLevel: 0.875,
+        attackDamagePerSecond: 5.4
+      }],
+      selectedTool: 'milk'
+    };
+
+    const soothed = applyToolToBaby(state, 1);
+    expect(soothed.babies[0].needs.milk).toBe(25);
+    expect(soothed.babies[0].enraged).toBe(false);
+    expect(soothed.babies[0].rageLevel).toBe(0);
+    expect(soothed.babies[0].attackDamagePerSecond).toBe(0);
   });
 
   it('completeCleanup validates pending diaper and completes success path', () => {
@@ -344,6 +386,19 @@ describe('createDaycareGameApp / initDaycareGame', () => {
 
     app.destroy();
     expect(clearIntervalMock).toHaveBeenCalledWith(22);
+  });
+
+  it('guards drop handling when draggable payload is invalid', () => {
+    buildDom();
+    const app = createDaycareGameApp(document, window, { rng: () => 0, intervalMs: 500 });
+    expect(app).toBeTruthy();
+
+    const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: { getData: () => 'not-a-number' } });
+    document.querySelector('[data-daycare-trash]').dispatchEvent(dropEvent);
+
+    expect(document.querySelector('[data-daycare-message]').textContent).toContain('Select a baby');
+    app.destroy();
   });
 
   it('initDaycareGame delegates to createDaycareGameApp', () => {

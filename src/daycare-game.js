@@ -286,6 +286,11 @@ export function createDaycareGameApp(doc, win, {
   const trash = root.querySelector('[data-daycare-trash]');
   const toolButtons = [...root.querySelectorAll('[data-daycare-tool]')];
   const resetButton = root.querySelector('[data-daycare-reset]');
+  const requiredElements = [board, healthFill, healthLabel, stats, message, trash];
+
+  if (requiredElements.some((element) => !element) || toolButtons.length === 0) {
+    return null;
+  }
 
   let state = createInitialDaycareState(rng);
 

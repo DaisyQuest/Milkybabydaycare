@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Milky Baby Daycare Minigame</title>
+    <link rel="stylesheet" href="./src/site.css" />
+  </head>
+  <body>
+    <main class="daycare-page" data-daycare-root>
+      <section class="daycare-header">
+        <h1>Milky Baby Daycare: Whiny Crisis Mode</h1>
+        <p class="subtitle">Pick a tool, click a baby, and keep the nursery from total meltdown.</p>
+      </section>
+
+      <section class="daycare-status" aria-label="Game status">
+        <div>
+          <strong>Player health</strong>
+          <div class="health-track" data-daycare-health-track>
+            <div class="health-fill" data-daycare-health-fill></div>
+          </div>
+          <p data-daycare-health-label aria-live="polite"></p>
+        </div>
+        <p data-daycare-stats aria-live="polite"></p>
+      </section>
+
+      <section class="daycare-toolbar" aria-label="Care tools">
+        <button type="button" data-daycare-tool="milk">🍼 Milk</button>
+        <button type="button" data-daycare-tool="caress">🤲 Caress</button>
+        <button type="button" data-daycare-tool="cleanup">🧷 Cleanup</button>
+        <button type="button" data-daycare-reset>Reset Game</button>
+      </section>
+
+      <section class="daycare-board" data-daycare-board aria-label="Baby daycare board"></section>
+
+      <section class="daycare-trash-row">
+        <div class="daycare-trash" data-daycare-trash>🗑️ Trashcan</div>
+        <p data-daycare-message aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script type="module">
+      import { initDaycareGame } from './src/daycare-game.js';
+      initDaycareGame(document, window);
+    </script>
+  </body>
+</html>

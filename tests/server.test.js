@@ -3,12 +3,19 @@ import request from 'supertest';
 import { createServer } from '../src/server.js';
 
 describe('express server', () => {
-  it('serves homepage, world, meme generator, cryptographic-image page, and system monitor pages with expected ui', async () => {
+  it('serves homepage, daycare, world, meme generator, cryptographic-image page, and system monitor pages with expected ui', async () => {
     const app = createServer({ random: () => 0, now: () => 1_000 });
 
     const home = await request(app).get('/');
     expect(home.status).toBe(200);
     expect(home.text).toContain('Milky Baby Daycare');
+
+
+    const daycare = await request(app).get('/daycare');
+    expect(daycare.status).toBe(200);
+    expect(daycare.text).toContain('Milky Baby Daycare: Whiny Crisis Mode');
+    expect(daycare.text).toContain('data-daycare-root');
+    expect(daycare.text).toContain('data-daycare-tool="milk"');
 
     const monitor = await request(app).get('/system_monitor');
     expect(monitor.status).toBe(200);
@@ -76,8 +83,12 @@ describe('express server', () => {
     });
 
     const staticScript = await request(app).get('/src/world-client.js');
+    const daycareScript = await request(app).get('/src/daycare-game.js');
     expect(staticScript.status).toBe(200);
     expect(staticScript.text).toContain('initWorld');
+
+    expect(daycareScript.status).toBe(200);
+    expect(daycareScript.text).toContain('createDaycareGameApp');
 
     const memeScript = await request(app).get('/src/meme-generator.js');
     expect(memeScript.status).toBe(200);

@@ -10,12 +10,68 @@ import {
 } from './world.js';
 import { collectSystemMetrics, systemMonitorPageTemplate } from './system-monitor.js';
 import { createMemeService } from './meme-service.js';
+import {
+  addNoiseToImage,
+  base64ToImage,
+  colorRandomizer,
+  decryptImageNoKey,
+  decryptImageWithKey,
+  encryptImageNoKey,
+  encryptImageWithKey,
+  imageToBase64,
+  randomCryptographicImage
+} from './crypto-image-service.js';
 
 const STALE_VIEWER_MS = 120_000;
 const MAX_CHAT_MESSAGES = 30;
 const MAX_ADMIN_ATTEMPTS = 5;
 const ADMIN_BLOCK_MS = 60_000;
 const DEFAULT_ADMIN_PASSWORD = 'bicassdooandyou';
+
+function cryptoSwaggerSpec() {
+  return {
+    openapi: '3.0.3',
+    info: {
+      title: 'Milky Baby Cryptographic Image API',
+      version: '1.0.0'
+    },
+    paths: {
+      '/api/crypto/encrypt/no-key': { post: { summary: 'Encrypt image with no key' } },
+      '/api/crypto/decrypt/no-key': { post: { summary: 'Decrypt image with no key' } },
+      '/api/crypto/encrypt/with-key': { post: { summary: 'Encrypt image with supplied key' } },
+      '/api/crypto/decrypt/with-key': { post: { summary: 'Decrypt image with supplied key' } },
+      '/api/crypto/noise/add': { post: { summary: 'Add noise to image (gaussian/random/salt_pepper)' } },
+      '/api/crypto/color-randomizer': { post: { summary: 'Randomize image colors' } },
+      '/api/crypto/image-to-base64': { post: { summary: 'Normalize image to base64' } },
+      '/api/crypto/base64-to-image': { post: { summary: 'Convert base64 to image data url' } },
+      '/api/crypto/random/simple-color': { get: { summary: 'Generate random cryptographic image (simple color)' } },
+      '/api/crypto/random/complex-color': { get: { summary: 'Generate random cryptographic image (complex color)' } },
+      '/api/crypto/random/extreme-color': { get: { summary: 'Generate random cryptographic image (extreme color)' } }
+    }
+  };
+}
+
+function swaggerPageTemplate() {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Milky Baby Crypto API Swagger</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+      window.ui = SwaggerUIBundle({
+        url: '/swagger.json',
+        dom_id: '#swagger-ui'
+      });
+    </script>
+  </body>
+</html>`;
+}
 
 function worldPageTemplate({ viewer, world }) {
   return `<!doctype html>
@@ -442,8 +498,20 @@ export function createServer({ random = Math.random, now, adminPassword, env = p
     res.sendFile('memegenerator.html', { root: process.cwd() });
   });
 
+  app.get('/cryptographic-images', (_req, res) => {
+    res.sendFile('cryptographic-images.html', { root: process.cwd() });
+  });
+
   app.get('/system_monitor', (_req, res) => {
     res.type('html').send(systemMonitorPageTemplate());
+  });
+
+  app.get('/swagger', (_req, res) => {
+    res.type('html').send(swaggerPageTemplate());
+  });
+
+  app.get('/swagger.json', (_req, res) => {
+    res.json(cryptoSwaggerSpec());
   });
 
   app.get('/memes/templates', (_req, res) => {
@@ -490,6 +558,58 @@ export function createServer({ random = Math.random, now, adminPassword, env = p
 
   app.post('/world/updates', (req, res) => {
     res.json(runtime.applyUpdate(req.body));
+  });
+
+  app.post('/api/crypto/encrypt/no-key', (req, res) => {
+    const result = encryptImageNoKey(req.body?.imageBase64);
+    res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.post('/api/crypto/decrypt/no-key', (req, res) => {
+    const result = decryptImageNoKey(req.body?.imageBase64);
+    res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.post('/api/crypto/encrypt/with-key', (req, res) => {
+    const result = encryptImageWithKey(req.body?.imageBase64, req.body?.key);
+    res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.post('/api/crypto/decrypt/with-key', (req, res) => {
+    const result = decryptImageWithKey(req.body?.imageBase64, req.body?.key);
+    res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.post('/api/crypto/noise/add', (req, res) => {
+    const result = addNoiseToImage(req.body?.imageBase64, req.body?.noiseType, req.body?.intensity);
+    res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.post('/api/crypto/color-randomizer', (req, res) => {
+    const result = colorRandomizer(req.body?.imageBase64);
+    res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.post('/api/crypto/image-to-base64', (req, res) => {
+    const result = imageToBase64(req.body?.imageBase64);
+    res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.post('/api/crypto/base64-to-image', (req, res) => {
+    const result = base64ToImage(req.body?.base64, req.body?.mimeType);
+    res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.get('/api/crypto/random/simple-color', (_req, res) => {
+    res.json(randomCryptographicImage('simple'));
+  });
+
+  app.get('/api/crypto/random/complex-color', (_req, res) => {
+    res.json(randomCryptographicImage('complex'));
+  });
+
+  app.get('/api/crypto/random/extreme-color', (_req, res) => {
+    res.json(randomCryptographicImage('extreme'));
   });
 
   return app;

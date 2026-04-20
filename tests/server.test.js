@@ -3,7 +3,7 @@ import request from 'supertest';
 import { createServer } from '../src/server.js';
 
 describe('express server', () => {
-  it('serves homepage, world, meme generator, and system monitor pages with expected ui', async () => {
+  it('serves homepage, world, meme generator, cryptographic-image page, and system monitor pages with expected ui', async () => {
     const app = createServer({ random: () => 0, now: () => 1_000 });
 
     const home = await request(app).get('/');
@@ -22,6 +22,22 @@ describe('express server', () => {
     expect(memeGenerator.text).toContain('Milky Baby Meme Generator');
     expect(memeGenerator.text).toContain('data-meme-file');
     expect(memeGenerator.text).toContain('data-meme-canvas');
+
+    const cryptoImages = await request(app).get('/cryptographic-images');
+    expect(cryptoImages.status).toBe(200);
+    expect(cryptoImages.text).toContain('Generate Cryptographic Images');
+    expect(cryptoImages.text).toContain('data-crypto-root');
+    expect(cryptoImages.text).toContain('data-crypto-op=\"encrypt-no-key\"');
+    expect(cryptoImages.text).toContain('data-crypto-op=\"random-extreme\"');
+
+    const swagger = await request(app).get('/swagger');
+    expect(swagger.status).toBe(200);
+    expect(swagger.text).toContain('SwaggerUIBundle');
+
+    const swaggerJson = await request(app).get('/swagger.json');
+    expect(swaggerJson.status).toBe(200);
+    expect(swaggerJson.body.openapi).toBe('3.0.3');
+    expect(swaggerJson.body.paths).toHaveProperty('/api/crypto/encrypt/no-key');
 
     const world = await request(app).get('/world');
     expect(world.status).toBe(200);
@@ -66,6 +82,66 @@ describe('express server', () => {
     const memeScript = await request(app).get('/src/meme-generator.js');
     expect(memeScript.status).toBe(200);
     expect(memeScript.text).toContain('createMemeGeneratorApp');
+
+    const cryptoScript = await request(app).get('/src/crypto-image-page.js');
+    expect(cryptoScript.status).toBe(200);
+    expect(cryptoScript.text).toContain('createCryptoImageApp');
+  });
+
+  it('serves crypto image REST APIs for encryption, noise, color randomization, conversion, and random image generation', async () => {
+    const app = createServer({ random: () => 0.5, now: () => 1_000 });
+    const samplePng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j6fYAAAAASUVORK5CYII=';
+
+    const encryptedNoKey = await request(app).post('/api/crypto/encrypt/no-key').send({ imageBase64: samplePng });
+    expect(encryptedNoKey.status).toBe(200);
+    expect(encryptedNoKey.body.ok).toBe(true);
+    expect(encryptedNoKey.body.algorithm).toBe('xor-no-key-v1');
+
+    const decryptedNoKey = await request(app).post('/api/crypto/decrypt/no-key').send({ imageBase64: encryptedNoKey.body.imageBase64 });
+    expect(decryptedNoKey.status).toBe(200);
+    expect(decryptedNoKey.body.imageBase64).toBe(samplePng);
+
+    const encryptedWithKey = await request(app).post('/api/crypto/encrypt/with-key').send({ imageBase64: samplePng, key: 'secret' });
+    expect(encryptedWithKey.status).toBe(200);
+    expect(encryptedWithKey.body.algorithm).toBe('xor-key-v1');
+
+    const decryptedWithKey = await request(app).post('/api/crypto/decrypt/with-key').send({ imageBase64: encryptedWithKey.body.imageBase64, key: 'secret' });
+    expect(decryptedWithKey.status).toBe(200);
+    expect(decryptedWithKey.body.imageBase64).toBe(samplePng);
+
+    const missingKey = await request(app).post('/api/crypto/encrypt/with-key').send({ imageBase64: samplePng });
+    expect(missingKey.status).toBe(400);
+    expect(missingKey.body).toEqual({ ok: false, error: 'key is required.' });
+
+    const noise = await request(app).post('/api/crypto/noise/add').send({ imageBase64: samplePng, noiseType: 'gaussian', intensity: 0.3 });
+    expect(noise.status).toBe(200);
+    expect(noise.body.noiseType).toBe('gaussian');
+
+    const colorized = await request(app).post('/api/crypto/color-randomizer').send({ imageBase64: samplePng });
+    expect(colorized.status).toBe(200);
+    expect(colorized.body.colorShift).toEqual(expect.any(Object));
+
+    const toBase64 = await request(app).post('/api/crypto/image-to-base64').send({ imageBase64: `data:image/png;base64,${samplePng}` });
+    expect(toBase64.status).toBe(200);
+    expect(toBase64.body.imageBase64).toBe(samplePng);
+
+    const toImage = await request(app).post('/api/crypto/base64-to-image').send({ base64: samplePng, mimeType: 'image/png' });
+    expect(toImage.status).toBe(200);
+    expect(toImage.body.imageDataUrl).toContain('data:image/png;base64,');
+
+    const toImageMissing = await request(app).post('/api/crypto/base64-to-image').send({ base64: '   ' });
+    expect(toImageMissing.status).toBe(400);
+    expect(toImageMissing.body).toEqual({ ok: false, error: 'base64 is required.' });
+
+    const randomSimple = await request(app).get('/api/crypto/random/simple-color');
+    const randomComplex = await request(app).get('/api/crypto/random/complex-color');
+    const randomExtreme = await request(app).get('/api/crypto/random/extreme-color');
+
+    expect(randomSimple.status).toBe(200);
+    expect(randomSimple.body.mode).toBe('simple');
+    expect(randomComplex.body.mode).toBe('complex');
+    expect(randomExtreme.body.mode).toBe('extreme');
+    expect(randomExtreme.body.imageDataUrl).toContain('data:image/svg+xml;base64,');
   });
 
 

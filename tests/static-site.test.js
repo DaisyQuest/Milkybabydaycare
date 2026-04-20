@@ -24,6 +24,7 @@ describe('static site entrypoint files', () => {
     expect(html).toContain('<a href="/world">Visit the interactive ASCII world →</a>');
     expect(html).toContain('<a href="/system_monitor">Open the live system monitor dashboard →</a>');
     expect(html).toContain('<a href="/memegenerator">Create a meme with live preview →</a>');
+    expect(html).toContain('<a href="/cryptographic-images">Generate cryptographic images + API playground →</a>');
   });
 
   it('keeps legacy milkybabydaycare.html content aligned with index.html', () => {
@@ -79,5 +80,29 @@ describe('meme generator entrypoint file', () => {
     expect(html).toContain('data-meme-size');
     expect(html).toContain('data-meme-canvas');
     expect(html).toContain("import { initMemeGenerator } from './src/meme-generator.js';");
+  });
+});
+
+describe('cryptographic image playground entrypoint file', () => {
+  it('provides a dedicated cryptographic image page with operation controls', () => {
+    const html = readProjectFile('cryptographic-images.html');
+
+    expect(html).toContain('<title>Generate Cryptographic Images</title>');
+    expect(html).toContain('data-crypto-root');
+    expect(html).toContain('data-crypto-request');
+    expect(html).toContain('data-crypto-response');
+    expect(html).toContain('data-crypto-preview');
+    expect(html).toContain('data-crypto-op="encrypt-no-key"');
+    expect(html).toContain('data-crypto-op="decrypt-no-key"');
+    expect(html).toContain('data-crypto-op="encrypt-with-key"');
+    expect(html).toContain('data-crypto-op="decrypt-with-key"');
+    expect(html).toContain('data-crypto-op="add-noise"');
+    expect(html).toContain('data-crypto-op="color-randomizer"');
+    expect(html).toContain('data-crypto-op="image-to-base64"');
+    expect(html).toContain('data-crypto-op="base64-to-image"');
+    expect(html).toContain('data-crypto-op="random-simple"');
+    expect(html).toContain('data-crypto-op="random-complex"');
+    expect(html).toContain('data-crypto-op="random-extreme"');
+    expect(html).toContain("import { initCryptoImageApp } from './src/crypto-image-page.js';");
   });
 });

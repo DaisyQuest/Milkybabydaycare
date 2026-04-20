@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Generate Cryptographic Images</title>
+    <link rel="stylesheet" href="./src/site.css" />
+  </head>
+  <body class="meme-body">
+    <main class="meme-composition" data-crypto-root>
+      <section class="meme-hero">
+        <p class="meme-brand">Generate Cryptographic Images</p>
+        <h1>Fun encryption and image mutation playground.</h1>
+        <p class="meme-support">Try every tool, inspect JSON responses, and preview generated image payloads instantly.</p>
+        <p><a class="monitor-link" href="/swagger">Open Swagger API docs →</a></p>
+      </section>
+
+      <section class="meme-controls" aria-label="Cryptographic image controls">
+        <label>
+          Request JSON
+          <textarea data-crypto-request rows="12" spellcheck="false">{
+  "imageBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j6fYAAAAASUVORK5CYII=",
+  "key": "milky-secret",
+  "noiseType": "gaussian",
+  "intensity": 0.2,
+  "mimeType": "image/png"
+}</textarea>
+        </label>
+
+        <div class="button-row" aria-label="Crypto operations">
+          <button type="button" data-crypto-op="encrypt-no-key">EncryptImage no key</button>
+          <button type="button" data-crypto-op="decrypt-no-key">DecryptImage no key</button>
+          <button type="button" data-crypto-op="encrypt-with-key">EncryptImage with key</button>
+          <button type="button" data-crypto-op="decrypt-with-key">DecryptImage with key</button>
+          <button type="button" data-crypto-op="add-noise">AddNoiseToImage</button>
+          <button type="button" data-crypto-op="color-randomizer">ColorRandomizer</button>
+          <button type="button" data-crypto-op="image-to-base64">ImageToBase64</button>
+          <button type="button" data-crypto-op="base64-to-image">Base64ToImage</button>
+          <button type="button" data-crypto-op="random-simple">RandomCryptographicImageSimpleColor</button>
+          <button type="button" data-crypto-op="random-complex">RandomCryptographicImageComplexColor</button>
+          <button type="button" data-crypto-op="random-extreme">RandomCryptographicImageExtremeColor</button>
+        </div>
+
+        <p class="meme-status" data-crypto-status aria-live="polite">Choose an operation to begin.</p>
+        <label>
+          API Response JSON
+          <pre data-crypto-response class="monitor-json">{}</pre>
+        </label>
+      </section>
+
+      <section class="meme-preview-wrap">
+        <img data-crypto-preview alt="Cryptographic image preview" hidden style="width:100%;height:100%;object-fit:contain;" />
+      </section>
+    </main>
+
+    <script type="module">
+      import { initCryptoImageApp } from './src/crypto-image-page.js';
+      initCryptoImageApp(document, window);
+    </script>
+  </body>
+</html>

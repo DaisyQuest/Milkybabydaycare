@@ -1270,6 +1270,7 @@ button:focus-visible::after {
   touch-action: manipulation;
   will-change: transform;
   transition: transform 160ms ease, filter 160ms ease;
+  overflow: visible;
   z-index: 0;
 }
 

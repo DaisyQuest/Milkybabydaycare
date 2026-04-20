@@ -1197,3 +1197,150 @@ button:focus-visible::after {
 @keyframes rainbowRotate {
   to { transform: rotate(1turn); }
 }
+
+.daycare-page {
+  width: min(1100px, 94vw);
+  margin: 1.25rem auto;
+  padding: 1.2rem;
+  border-radius: 1.5rem;
+  background: linear-gradient(145deg, rgba(255, 247, 252, 0.68), rgba(227, 250, 255, 0.52));
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 16px 34px rgba(64, 52, 90, 0.16);
+}
+
+.daycare-header,
+.daycare-status,
+.daycare-toolbar,
+.daycare-trash-row {
+  margin-bottom: 1rem;
+}
+
+.daycare-status {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1rem;
+}
+
+.health-track {
+  margin-top: 0.35rem;
+  width: 100%;
+  height: 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+}
+
+.health-fill {
+  height: 100%;
+  width: 100%;
+  transition: width 200ms linear;
+  background: linear-gradient(90deg, #64f5a4, #ffd76b 65%, #ff667d);
+}
+
+.daycare-toolbar {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.daycare-board {
+  min-height: 460px;
+  position: relative;
+  border-radius: 1.2rem;
+  border: 1px solid var(--panel-border);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.8), transparent 24%),
+    linear-gradient(150deg, rgba(255, 236, 246, 0.72), rgba(218, 249, 255, 0.68));
+  overflow: hidden;
+}
+
+.daycare-baby {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: none;
+  background: transparent;
+  width: calc(72px + (var(--rage-level, 0) * 34px));
+  height: calc(100px + (var(--rage-level, 0) * 40px));
+  cursor: pointer;
+}
+
+.daycare-baby__head {
+  position: absolute;
+  left: 50%;
+  top: 12%;
+  transform: translateX(-50%);
+  width: calc(34px + (var(--rage-level, 0) * 14px));
+  height: calc(34px + (var(--rage-level, 0) * 14px));
+  border-radius: 999px;
+  background: color-mix(in oklab, #ffe7cc 75%, #ff4f5e calc(var(--rage-level, 0) * 100%));
+  border: 2px solid rgba(64, 52, 90, 0.25);
+}
+
+.daycare-baby__body {
+  position: absolute;
+  left: 50%;
+  top: 35%;
+  transform: translateX(-50%);
+  width: calc(56px + (var(--rage-level, 0) * 24px));
+  height: calc(66px + (var(--rage-level, 0) * 28px));
+  border-radius: 999px;
+  background: color-mix(in oklab, #eef2ff 70%, #ff5968 calc(var(--rage-level, 0) * 100%));
+  border: 2px solid rgba(64, 52, 90, 0.25);
+}
+
+.daycare-baby__bubble {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  padding: 0.22rem 0.6rem;
+  font-size: 1rem;
+  border: 1px solid rgba(64, 52, 90, 0.2);
+}
+
+.daycare-diaper {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  font-size: 1.35rem;
+}
+
+.daycare-trash-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.daycare-trash {
+  border: 2px dashed rgba(64, 52, 90, 0.35);
+  border-radius: 1rem;
+  padding: 0.7rem 1rem;
+  background: rgba(255, 255, 255, 0.6);
+  min-width: 130px;
+  text-align: center;
+}
+
+.daycare-reset-pulse {
+  animation: daycareResetPulse 380ms ease-out;
+}
+
+@keyframes daycareResetPulse {
+  from {
+    transform: scale(0.985);
+    filter: saturate(0.85);
+  }
+
+  to {
+    transform: scale(1);
+    filter: saturate(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .daycare-status {
+    grid-template-columns: 1fr;
+  }
+}

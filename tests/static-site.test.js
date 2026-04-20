@@ -22,6 +22,7 @@ describe('static site entrypoint files', () => {
     expect(html).toContain("import { initMilkyBabyDaycare } from './src/site.js';");
     expect(html).toContain('initMilkyBabyDaycare(document, window, new Date());');
     expect(html).toContain('<a href="/world">Visit the interactive ASCII world →</a>');
+    expect(html).toContain('<a href="/daycare">Play the daycare whiny baby management minigame →</a>');
     expect(html).toContain('<a href="/system_monitor">Open the live system monitor dashboard →</a>');
     expect(html).toContain('<a href="/memegenerator">Create a meme with live preview →</a>');
     expect(html).toContain('<a href="/cryptographic-images">Generate cryptographic images + API playground →</a>');
@@ -106,5 +107,22 @@ describe('cryptographic image playground entrypoint file', () => {
     expect(html).toContain('data-crypto-op="random-complex"');
     expect(html).toContain('data-crypto-op="random-extreme"');
     expect(html).toContain("import { initCryptoImageApp } from './src/crypto-image-page.js';");
+  });
+});
+
+
+describe('daycare minigame entrypoint file', () => {
+  it('provides daycare route UI and initialization hook', () => {
+    const html = readProjectFile('daycare.html');
+
+    expect(html).toContain('<title>Milky Baby Daycare Minigame</title>');
+    expect(html).toContain('data-daycare-root');
+    expect(html).toContain('data-daycare-health-fill');
+    expect(html).toContain('data-daycare-tool="milk"');
+    expect(html).toContain('data-daycare-tool="caress"');
+    expect(html).toContain('data-daycare-tool="cleanup"');
+    expect(html).toContain('data-daycare-board');
+    expect(html).toContain('data-daycare-trash');
+    expect(html).toContain("import { initDaycareGame } from './src/daycare-game.js';");
   });
 });
